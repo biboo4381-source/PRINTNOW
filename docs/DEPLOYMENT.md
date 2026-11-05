@@ -27,6 +27,8 @@ Never commit real values. `.env*` files are git-ignored.
 
 ## One-time setup: connect the Neon database
 
+_Status: done on 5 Nov 2026 (Neon store connected to Production and Preview)._ Steps kept for reference / re-creating the project:
+
 1. Open **Vercel → printnow-web → Storage → Create Database → Neon (Serverless Postgres)**.
 2. Choose the free plan and region **Singapore (aws-ap-southeast-1)**, then **Connect** it to `printnow-web` for Production and Preview.
 3. Redeploy (Deployments → ⋯ → Redeploy). The build runs the migrations and seeds the placeholder prices.
