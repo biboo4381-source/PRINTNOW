@@ -3,6 +3,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   serial,
@@ -11,6 +12,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { ImageAdjustment } from "../image-layout";
 
 export const orderStatus = pgEnum("order_status", [
   "PENDING_PAYMENT",
@@ -74,6 +76,10 @@ export const uploadedFiles = pgTable(
     storageKey: text("storage_key").notNull().unique(),
     pageCount: integer("page_count").notNull(),
     sha256: text("sha256").notNull(),
+    /** Images only: stored pixel size and camera EXIF orientation (1 = normal). */
+    imageWidth: integer("image_width"),
+    imageHeight: integer("image_height"),
+    exifOrientation: integer("exif_orientation"),
     uploadedAt: tsz("uploaded_at").notNull().defaultNow(),
     deletedAt: tsz("deleted_at"),
   },
@@ -100,6 +106,19 @@ export const printSettings = pgTable(
     pricePerPage: integer("price_per_page").notNull(),
     printedPages: integer("printed_pages").notNull(),
     subtotal: integer("subtotal").notNull(),
+    /** Images only: the customer's crop/rotate/zoom/position (see lib/image-layout.ts). */
+    imageAdjustment: jsonb("image_adjustment").$type<ImageAdjustment>(),
+    /**
+     * Print-ready file the kiosk should print. For images: an A4 PDF rendered from the
+     * adjustment. For PDFs with selected pages: a PDF of just those pages. For whole PDFs:
+     * the original file. The original upload is always kept in uploaded_files.
+     */
+    printStorageKey: text("print_storage_key"),
+    printMimeType: text("print_mime_type"),
+    printPageCount: integer("print_page_count"),
+    /** Pages of the print file to print ("all" when the server already extracted the selection). */
+    printPages: text("print_pages"),
+    printSha256: text("print_sha256"),
   },
   (t) => [
     index("print_settings_order_idx").on(t.orderId),

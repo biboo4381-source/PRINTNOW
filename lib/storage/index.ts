@@ -68,11 +68,37 @@ export async function deleteObject(key: string): Promise<void> {
   await rm(/*turbopackIgnore: true*/ localPath(key), { force: true });
 }
 
+/** Server-side write (used for generated print-ready files). */
+export async function putObject(key: string, bytes: Uint8Array, contentType: string): Promise<void> {
+  if (storageMode() === "blob") {
+    const { put } = await import("@vercel/blob");
+    await put(key, Buffer.from(bytes), { access: "private", contentType, addRandomSuffix: false, allowOverwrite: false });
+    return;
+  }
+  await writeLocalObject(key, bytes);
+}
+
+/**
+ * Short-lived signed download link for a private blob (blob mode only).
+ * Used for files too large to send through a Vercel Function response (4.5 MB limit).
+ */
+export async function signedDownloadUrl(key: string, ttlSeconds = 300): Promise<string> {
+  const { issueSignedToken, presignUrl } = await import("@vercel/blob");
+  const validUntil = Date.now() + ttlSeconds * 1000;
+  const token = await issueSignedToken({ pathname: key, operations: ["get"], validUntil });
+  const { presignedUrl } = await presignUrl(token, { operation: "get", pathname: key, access: "private", validUntil });
+  return presignedUrl;
+}
+
 /** Local mode only: write an uploaded file to disk. */
 export async function writeLocalObject(key: string, bytes: Uint8Array): Promise<void> {
   const full = localPath(key);
   await mkdir(/*turbopackIgnore: true*/ path.dirname(full), { recursive: true });
   await writeFile(/*turbopackIgnore: true*/ full, bytes);
+}
+
+export function newPrintKey(): string {
+  return `prints/${crypto.randomUUID()}/print.pdf`;
 }
 
 /** Accepts only keys we issued: uploads/<uuid>/<name>. */

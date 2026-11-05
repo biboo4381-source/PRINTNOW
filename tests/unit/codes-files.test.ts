@@ -6,7 +6,7 @@ import {
   normalizeCollectionCode,
 } from "@/lib/codes";
 import { inspectPdf, sanitizeFileName, sniffFormat } from "@/lib/files";
-import { JPG_HEADER, PNG_1PX, TEXT_FILE, makePdf } from "../fixtures";
+import { JPG_SAMPLE, PNG_1PX, TEXT_FILE, makePdf } from "../fixtures";
 
 describe("collection codes", () => {
   it("has the PN + 6 digits format", () => {
@@ -36,7 +36,7 @@ describe("file checks", () => {
   it("detects real file types from bytes", async () => {
     expect(sniffFormat(await makePdf(1))).toBe("PDF");
     expect(sniffFormat(PNG_1PX)).toBe("PNG");
-    expect(sniffFormat(JPG_HEADER)).toBe("JPG");
+    expect(sniffFormat(JPG_SAMPLE)).toBe("JPG");
     expect(sniffFormat(TEXT_FILE)).toBeNull();
   });
 

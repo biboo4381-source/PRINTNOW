@@ -5,6 +5,8 @@ import { getDb } from "../db";
 import { uploadedFiles } from "../db/schema";
 import { AppError } from "../errors";
 import { MIME_BY_FORMAT, inspectPdf, sanitizeFileName, sniffFormat } from "../files";
+import { displayedSize } from "../image-layout";
+import { readImageMeta } from "../image-meta";
 import { deleteObject, isValidUploadKey, readObject } from "../storage";
 
 export interface VerifiedFile {
@@ -13,6 +15,9 @@ export interface VerifiedFile {
   format: "PDF" | "JPG" | "PNG";
   sizeBytes: number;
   pageCount: number;
+  /** Images: size as displayed (after camera orientation), used for the A4 preview. */
+  imageWidth: number | null;
+  imageHeight: number | null;
 }
 
 /**
@@ -56,6 +61,16 @@ export async function verifyUploadedFile(storageKey: unknown, originalName: unkn
   }
 
   let pageCount = 1;
+  let image: { width: number; height: number; orientation: number } | null = null;
+  if (format === "JPG" || format === "PNG") {
+    image = readImageMeta(bytes);
+    if (!image) return reject("IMAGE_UNREADABLE", "We couldn't read this image. Please try a different file.");
+    const megapixels = (image.width * image.height) / 1e6;
+    const cap = format === "PNG" ? LIMITS.maxPngMegapixels : LIMITS.maxJpegMegapixels;
+    if (megapixels > cap) {
+      return reject("IMAGE_TOO_LARGE", `This image is too large (${Math.round(megapixels)} megapixels). Please use an image under ${cap} megapixels.`);
+    }
+  }
   if (format === "PDF") {
     const result = await inspectPdf(bytes);
     if (!result.ok) {
@@ -81,6 +96,9 @@ export async function verifyUploadedFile(storageKey: unknown, originalName: unkn
       storageKey,
       pageCount,
       sha256: sha256Hex(bytes),
+      imageWidth: image?.width ?? null,
+      imageHeight: image?.height ?? null,
+      exifOrientation: image?.orientation ?? null,
     })
     .onConflictDoNothing({ target: uploadedFiles.storageKey })
     .returning();
@@ -93,11 +111,15 @@ export async function verifyUploadedFile(storageKey: unknown, originalName: unkn
 }
 
 function toVerified(row: typeof uploadedFiles.$inferSelect): VerifiedFile {
+  const shown =
+    row.imageWidth && row.imageHeight ? displayedSize(row.imageWidth, row.imageHeight, row.exifOrientation) : null;
   return {
     id: row.id,
     name: row.originalName,
     format: row.format,
     sizeBytes: row.sizeBytes,
     pageCount: row.pageCount,
+    imageWidth: shown?.width ?? null,
+    imageHeight: shown?.height ?? null,
   };
 }

@@ -2,10 +2,9 @@ import { and, count, desc, eq, gte } from "drizzle-orm";
 import { KIOSK } from "../config";
 import { normalizeCollectionCode } from "../codes";
 import { type Db, getDb } from "../db";
-import { type Order, kioskLogs, orders, uploadedFiles } from "../db/schema";
+import { type Order, kioskLogs, orders, printSettings, uploadedFiles } from "../db/schema";
 import { AppError } from "../errors";
-import { readObject } from "../storage";
-import { expireIfNeeded, isUuid, loadOrderItems } from "./orders";
+import { expireIfNeeded, isUuid, loadOrderRows } from "./orders";
 
 type KioskAction = (typeof kioskLogs.$inferInsert)["action"];
 
@@ -58,7 +57,7 @@ async function findByCode(db: Db, code: string): Promise<Order | null> {
 }
 
 async function kioskOrderView(db: Db, order: Order) {
-  const items = await loadOrderItems(db, order.id);
+  const rows = await loadOrderRows(db, order.id);
   return {
     orderId: order.id,
     orderRef: order.orderRef,
@@ -66,22 +65,45 @@ async function kioskOrderView(db: Db, order: Order) {
     totalPrice: order.totalPrice,
     paidAt: order.paidAt?.toISOString() ?? null,
     expiresAt: order.expiresAt.toISOString(),
-    totalPrintedPages: items.reduce((s, i) => s + i.printedPages, 0),
-    files: items.map((i) => ({
-      fileId: i.fileId,
-      name: i.name,
-      format: i.format,
-      pageCount: i.pageCount,
-      downloadPath: `/api/kiosk/orders/${order.id}/files/${i.fileId}`,
-      settings: {
-        paperSize: i.paperSize,
-        colorMode: i.colorMode,
-        copies: i.copies,
-        pages: i.pageSelection,
-        selectedPageCount: i.selectedPageCount,
-        printedPages: i.printedPages,
-      },
-    })),
+    totalPrintedPages: rows.reduce((sum, r) => sum + r.s.printedPages, 0),
+    // Exactly one document per order; kept as an array for a stable response shape.
+    files: rows.map(({ s, f }) => {
+      const base = `/api/kiosk/orders/${order.id}/files/${f.id}`;
+      const hasPrint = !!s.printStorageKey;
+      return {
+        fileId: f.id,
+        name: f.originalName,
+        format: f.format,
+        pageCount: f.pageCount,
+        /** What to print. Same as print.downloadPath. */
+        downloadPath: `${base}?variant=${hasPrint ? "print" : "original"}`,
+        print: hasPrint
+          ? {
+              downloadPath: `${base}?variant=print`,
+              mimeType: s.printMimeType,
+              pageCount: s.printPageCount,
+              /** Pages of THIS file to print: "all", or a range list if the server couldn't extract them. */
+              pages: s.printPages,
+              sha256: s.printSha256,
+            }
+          : null,
+        original: {
+          downloadPath: `${base}?variant=original`,
+          mimeType: f.mimeType,
+          pageCount: f.pageCount,
+          sha256: f.sha256,
+        },
+        settings: {
+          paperSize: s.paperSize,
+          colorMode: s.colorMode,
+          copies: s.copies,
+          pages: s.pageSelection,
+          selectedPageCount: s.selectedPageCount,
+          printedPages: s.printedPages,
+          imageAdjustment: s.imageAdjustment ?? null,
+        },
+      };
+    }),
   };
 }
 
@@ -141,8 +163,13 @@ async function requireOrder(db: Db, orderId: string) {
   return order;
 }
 
-/** Step 3: stream a file. Only while PROCESSING and only to the kiosk that claimed it. */
-export async function getFileForKiosk(kioskId: string, orderId: string, fileId: string) {
+export type FileVariant = "print" | "original";
+
+/**
+ * Step 3: find the file to download. Only while PROCESSING and only for the kiosk that claimed it.
+ * Returns where the bytes live; the route decides how to deliver them.
+ */
+export async function getFileForKiosk(kioskId: string, orderId: string, fileId: string, variant: FileVariant = "print") {
   const db = await getDb();
   const order = await requireOrder(db, orderId);
   if (order.status !== "PROCESSING" || order.claimedByKiosk !== kioskId) {
@@ -150,19 +177,27 @@ export async function getFileForKiosk(kioskId: string, orderId: string, fileId: 
     throw new AppError("NOT_CLAIMED", "Claim this order before downloading its files.", 409);
   }
   if (!isUuid(fileId)) throw new AppError("FILE_NOT_FOUND", "File not found.", 404);
-  const [file] = await db
-    .select()
+  const [row] = await db
+    .select({ f: uploadedFiles, s: printSettings })
     .from(uploadedFiles)
+    .innerJoin(printSettings, eq(printSettings.fileId, uploadedFiles.id))
     .where(and(eq(uploadedFiles.id, fileId), eq(uploadedFiles.orderId, orderId)))
     .limit(1);
-  if (!file || file.deletedAt) throw new AppError("FILE_NOT_FOUND", "File not found.", 404);
-  const bytes = await readObject(file.storageKey);
-  if (!bytes) {
-    await log(db, { kioskId, action: "DOWNLOAD", result: "STORAGE_MISSING", orderId, error: file.id });
-    throw new AppError("FILE_NOT_FOUND", "The file is missing from storage.", 404);
-  }
-  await log(db, { kioskId, action: "DOWNLOAD", result: "OK", orderId });
-  return { file, bytes };
+  if (!row || row.f.deletedAt) throw new AppError("FILE_NOT_FOUND", "File not found.", 404);
+  const { f, s } = row;
+  const usePrint = variant === "print" && !!s.printStorageKey;
+  const base = f.originalName.replace(/\.[^.]+$/, "");
+  const descriptor = usePrint
+    ? {
+        storageKey: s.printStorageKey!,
+        mimeType: s.printMimeType ?? "application/pdf",
+        sha256: s.printSha256 ?? "",
+        fileName: `${base}-print.pdf`,
+        variant: "print" as const,
+      }
+    : { storageKey: f.storageKey, mimeType: f.mimeType, sha256: f.sha256, fileName: f.originalName, variant: "original" as const };
+  await log(db, { kioskId, action: "DOWNLOAD", result: `OK_${descriptor.variant.toUpperCase()}`, orderId });
+  return descriptor;
 }
 
 /** Step 4: PROCESSING → COMPLETED. Idempotent for the same kiosk. */

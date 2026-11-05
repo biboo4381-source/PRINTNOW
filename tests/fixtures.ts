@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 
 export async function makePdf(pages: number): Promise<Uint8Array> {
@@ -18,8 +20,8 @@ export const PNG_1PX = Uint8Array.from(
   ),
 );
 
-/** Minimal JPEG header bytes (enough for type sniffing). */
-export const JPG_HEADER = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01]);
+/** 160x120 JPEG with four coloured quadrants (red/green over blue/yellow). */
+export const JPG_SAMPLE = Uint8Array.from(readFileSync(path.join(process.cwd(), "tests", "fixtures", "quadrants.jpg")));
 
 export const TEXT_FILE = new TextEncoder().encode("hello, this is not a printable document");
 

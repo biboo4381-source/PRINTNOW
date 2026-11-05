@@ -1,7 +1,7 @@
-import { and, eq, inArray, isNull, lt, lte, or } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lt, lte, ne, or } from "drizzle-orm";
 import { EXPIRY } from "../config";
 import { getDb } from "../db";
-import { orders, uploadedFiles } from "../db/schema";
+import { orders, printSettings, uploadedFiles } from "../db/schema";
 import { deleteObject } from "../storage";
 
 const HOUR = 60 * 60 * 1000;
@@ -56,6 +56,30 @@ export async function runCleanup(now = new Date()) {
       deletedFiles++;
     } catch (err) {
       errors.push(`${file.id}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Generated print-ready files (only those that are separate objects from the original upload).
+  if (finishedIds.length) {
+    const prints = await db
+      .select({ id: printSettings.id, key: printSettings.printStorageKey })
+      .from(printSettings)
+      .innerJoin(uploadedFiles, eq(printSettings.fileId, uploadedFiles.id))
+      .where(
+        and(
+          inArray(printSettings.orderId, finishedIds),
+          isNotNull(printSettings.printStorageKey),
+          ne(printSettings.printStorageKey, uploadedFiles.storageKey),
+        ),
+      );
+    for (const p of prints) {
+      try {
+        await deleteObject(p.key!);
+        await db.update(printSettings).set({ printStorageKey: null }).where(eq(printSettings.id, p.id));
+        deletedFiles++;
+      } catch (err) {
+        errors.push(`print ${p.id}: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
   }
 

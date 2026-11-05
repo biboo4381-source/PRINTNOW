@@ -1,18 +1,25 @@
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { EXPIRY, LIMITS } from "../config";
 import { generateCollectionCode, generateOrderRef, generateSecretToken, safeEqualHex, sha256Hex } from "../codes";
 import { type Db, getDb } from "../db";
-import { type Order, orders, payments, printSettings, uploadedFiles } from "../db/schema";
+import { type Order, type UploadedFile, orders, payments, printSettings, uploadedFiles } from "../db/schema";
 import { AppError } from "../errors";
+import { DEFAULT_ADJUSTMENT, type ImageAdjustment, isDefaultAdjustment, sanitizeAdjustment } from "../image-layout";
 import { parsePageSelection } from "../pages";
 import { type ColorMode, priceLine } from "../pricing";
+import { extractPdfPages, renderImagePrintPdf } from "../print-render";
+import { deleteObject, newPrintKey, putObject, readObject } from "../storage";
 import { getActivePrices } from "./pricing";
 
-export interface OrderItemInput {
+/** One document per order. */
+export interface OrderInput {
   fileId: string;
   colorMode: ColorMode;
   copies: number;
+  /** PDFs: "all" or a range list. Images: always "all". */
   pageSelection: string;
+  /** JPG/PNG only. Omitted = fit to A4, no crop/rotation. */
+  imageAdjustment?: ImageAdjustment;
 }
 
 export interface OrderItemView {
@@ -28,6 +35,9 @@ export interface OrderItemView {
   pricePerPage: number;
   printedPages: number;
   subtotal: number;
+  imageAdjustment: ImageAdjustment | null;
+  /** True when the image was cropped, rotated, zoomed or moved. */
+  imageAdjusted: boolean;
 }
 
 export interface OrderView {
@@ -42,6 +52,7 @@ export interface OrderView {
   paidAt: string | null;
   completedAt: string | null;
   expiresAt: string;
+  /** Always exactly one item (one document per order). */
   items: OrderItemView[];
 }
 
@@ -56,115 +67,183 @@ export function isUniqueViolation(err: unknown): boolean {
   return e?.code === "23505" || e?.cause?.code === "23505";
 }
 
-function validateItems(items: unknown): OrderItemInput[] {
-  if (!Array.isArray(items) || items.length === 0) {
-    throw new AppError("NO_FILES", "Please add at least one file to your order.");
+function validateInput(raw: unknown): OrderInput & { rawAdjustment: unknown } {
+  if (Array.isArray(raw)) {
+    throw new AppError("ONE_FILE_ONLY", `Each order can contain ${LIMITS.filesPerOrder} document. Please place a separate order for each file.`);
   }
-  if (items.length > LIMITS.maxFilesPerOrder) {
-    throw new AppError("TOO_MANY_FILES", `You can print up to ${LIMITS.maxFilesPerOrder} files per order.`);
+  const item = (raw ?? {}) as Partial<OrderInput>;
+  if (!isUuid(item.fileId)) throw new AppError("NO_FILE", "Please upload a document first.");
+  if (item.colorMode !== "BW" && item.colorMode !== "COLOR") {
+    throw new AppError("INVALID_MODE", "Please choose Black & White or Color.");
   }
-  const seen = new Set<string>();
-  return items.map((raw) => {
-    const item = raw as Partial<OrderItemInput>;
-    if (!isUuid(item?.fileId)) throw new AppError("INVALID_FILE", "One of the files is invalid. Please upload it again.");
-    if (seen.has(item.fileId)) throw new AppError("DUPLICATE_FILE", "The same file was added twice.");
-    seen.add(item.fileId);
-    if (item.colorMode !== "BW" && item.colorMode !== "COLOR") {
-      throw new AppError("INVALID_MODE", "Please choose Black & White or Color.");
-    }
-    if (!Number.isInteger(item.copies) || item.copies! < LIMITS.minCopies || item.copies! > LIMITS.maxCopies) {
-      throw new AppError("INVALID_COPIES", `Copies must be between ${LIMITS.minCopies} and ${LIMITS.maxCopies}.`);
-    }
-    if (typeof item.pageSelection !== "string" || item.pageSelection.length > 200) {
-      throw new AppError("INVALID_PAGES", "Please check the pages you selected.");
-    }
-    return { fileId: item.fileId, colorMode: item.colorMode, copies: item.copies!, pageSelection: item.pageSelection };
-  });
+  if (!Number.isInteger(item.copies) || item.copies! < LIMITS.minCopies || item.copies! > LIMITS.maxCopies) {
+    throw new AppError("INVALID_COPIES", `Copies must be between ${LIMITS.minCopies} and ${LIMITS.maxCopies}.`);
+  }
+  const pageSelection = item.pageSelection ?? "all";
+  if (typeof pageSelection !== "string" || pageSelection.length > 200) {
+    throw new AppError("INVALID_PAGES", "Please check the pages you selected.");
+  }
+  return {
+    fileId: item.fileId,
+    colorMode: item.colorMode,
+    copies: item.copies!,
+    pageSelection,
+    rawAdjustment: item.imageAdjustment,
+  };
+}
+
+interface PrintOutput {
+  key: string;
+  /** True when we created a new object (so it must be cleaned up if the order isn't saved). */
+  created: boolean;
+  mimeType: string;
+  pageCount: number;
+  pages: string;
+  sha256: string;
 }
 
 /**
- * Creates an order in PENDING_PAYMENT. The server recalculates every price;
- * nothing price-related is accepted from the browser.
- * Returns the raw access token once — only its hash is stored.
+ * Builds the file the kiosk will print:
+ * - JPG/PNG → single-page A4 PDF rendered from the customer's adjustment (original kept separately)
+ * - PDF with selected pages → PDF containing only those pages
+ * - whole PDF → the original file
  */
-export async function createOrder(rawItems: unknown) {
-  const items = validateItems(rawItems);
-  const prices = await getActivePrices();
-  const db = await getDb();
-  const accessToken = generateSecretToken();
+async function buildPrintOutput(file: UploadedFile, selection: { normalized: string; pages: number[] }, adjustment: ImageAdjustment | null): Promise<PrintOutput> {
+  if (file.format === "PDF" && selection.normalized === "all") {
+    return { key: file.storageKey, created: false, mimeType: "application/pdf", pageCount: file.pageCount, pages: "all", sha256: file.sha256 };
+  }
+  const bytes = await readObject(file.storageKey);
+  if (!bytes) throw new AppError("FILE_UNAVAILABLE", "Your file is no longer available. Please upload it again.", 409);
 
-  for (let attempt = 0; attempt < 5; attempt++) {
+  let output: Uint8Array;
+  if (file.format === "PDF") {
     try {
-      const orderId = await db.transaction(async (tx) => {
-        const fileIds = items.map((i) => i.fileId);
-        const files = await tx
-          .select()
-          .from(uploadedFiles)
-          .where(and(inArray(uploadedFiles.id, fileIds), isNull(uploadedFiles.orderId), isNull(uploadedFiles.deletedAt)));
-        const byId = new Map(files.map((f) => [f.id, f]));
-
-        const lines = items.map((item, position) => {
-          const file = byId.get(item.fileId);
-          if (!file) {
-            throw new AppError("FILE_UNAVAILABLE", "One of your files is no longer available. Please upload it again.", 409);
-          }
-          const selection = parsePageSelection(item.pageSelection, file.pageCount);
-          if (!selection.ok) {
-            throw new AppError("INVALID_PAGES", `${file.originalName}: ${selection.error}`);
-          }
-          const price = priceLine(prices, {
-            selectedPageCount: selection.count,
-            copies: item.copies,
-            colorMode: item.colorMode,
-          });
-          return { item, file, position, selection, price };
-        });
-
-        const total = lines.reduce((s, l) => s + l.price.subtotal, 0);
-        const [order] = await tx
-          .insert(orders)
-          .values({
-            orderRef: generateOrderRef(),
-            totalPrice: total,
-            accessTokenHash: sha256Hex(accessToken),
-            expiresAt: new Date(Date.now() + EXPIRY.unpaidHours * HOUR),
-          })
-          .returning({ id: orders.id });
-
-        const claimed = await tx
-          .update(uploadedFiles)
-          .set({ orderId: order.id })
-          .where(and(inArray(uploadedFiles.id, fileIds), isNull(uploadedFiles.orderId)))
-          .returning({ id: uploadedFiles.id });
-        if (claimed.length !== fileIds.length) {
-          throw new AppError("FILE_UNAVAILABLE", "One of your files is already part of another order. Please upload it again.", 409);
-        }
-
-        await tx.insert(printSettings).values(
-          lines.map((l) => ({
-            orderId: order.id,
-            fileId: l.file.id,
-            position: l.position,
-            paperSize: "A4" as const,
-            colorMode: l.item.colorMode,
-            copies: l.item.copies,
-            pageSelection: l.selection.normalized,
-            selectedPageCount: l.selection.count,
-            pricePerPage: l.price.pricePerPage,
-            printedPages: l.price.printedPages,
-            subtotal: l.price.subtotal,
-          })),
-        );
-        return order.id;
-      });
-      return { orderId, accessToken };
+      output = await extractPdfPages(bytes, selection.pages);
     } catch (err) {
-      // Retry only on a (very unlikely) order reference collision.
-      if (isUniqueViolation(err) && attempt < 4) continue;
-      throw err;
+      // Fall back to the original PDF + page list; the kiosk prints just those pages.
+      console.warn("[printnow] page extraction failed, using original PDF", err);
+      return { key: file.storageKey, created: false, mimeType: "application/pdf", pageCount: file.pageCount, pages: selection.normalized, sha256: file.sha256 };
+    }
+  } else {
+    if (!file.imageWidth || !file.imageHeight) {
+      throw new AppError("FILE_UNAVAILABLE", "Your image needs to be uploaded again.", 409);
+    }
+    try {
+      output = await renderImagePrintPdf({
+        bytes,
+        format: file.format,
+        rawWidth: file.imageWidth,
+        rawHeight: file.imageHeight,
+        exifOrientation: file.exifOrientation ?? 1,
+        adjustment: adjustment ?? DEFAULT_ADJUSTMENT,
+      });
+    } catch (err) {
+      console.error("[printnow] image render failed", err);
+      throw new AppError("IMAGE_RENDER_FAILED", "We couldn't prepare this image for printing. Please try a different image.", 422);
     }
   }
-  throw new AppError("ORDER_FAILED", "We couldn't create your order. Please try again.", 500);
+  const key = newPrintKey();
+  await putObject(key, output, "application/pdf");
+  return {
+    key,
+    created: true,
+    mimeType: "application/pdf",
+    pageCount: file.format === "PDF" ? selection.pages.length : 1,
+    pages: "all",
+    sha256: sha256Hex(output),
+  };
+}
+
+/**
+ * Creates an order in PENDING_PAYMENT for exactly one document. The server recalculates
+ * the price and builds the print-ready file; nothing price-related is accepted from the browser.
+ * Returns the raw access token once — only its hash is stored.
+ */
+export async function createOrder(raw: unknown) {
+  const input = validateInput(raw);
+  const prices = await getActivePrices();
+  const db = await getDb();
+
+  const [file] = await db
+    .select()
+    .from(uploadedFiles)
+    .where(and(eq(uploadedFiles.id, input.fileId), isNull(uploadedFiles.orderId), isNull(uploadedFiles.deletedAt)))
+    .limit(1);
+  if (!file) throw new AppError("FILE_UNAVAILABLE", "Your file is no longer available. Please upload it again.", 409);
+
+  const isImage = file.format === "JPG" || file.format === "PNG";
+  const selection = parsePageSelection(isImage ? "all" : input.pageSelection, file.pageCount);
+  if (!selection.ok) throw new AppError("INVALID_PAGES", selection.error);
+
+  let adjustment: ImageAdjustment | null = null;
+  if (isImage) {
+    try {
+      adjustment = input.rawAdjustment === undefined ? DEFAULT_ADJUSTMENT : sanitizeAdjustment(input.rawAdjustment);
+    } catch (err) {
+      throw new AppError("INVALID_ADJUSTMENT", err instanceof Error ? err.message : "Invalid image adjustment.");
+    }
+  }
+
+  const price = priceLine(prices, { selectedPageCount: selection.count, copies: input.copies, colorMode: input.colorMode });
+  const print = await buildPrintOutput(file, selection, adjustment);
+  const accessToken = generateSecretToken();
+
+  try {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        const orderId = await db.transaction(async (tx) => {
+          const [order] = await tx
+            .insert(orders)
+            .values({
+              orderRef: generateOrderRef(),
+              totalPrice: price.subtotal,
+              accessTokenHash: sha256Hex(accessToken),
+              expiresAt: new Date(Date.now() + EXPIRY.unpaidHours * HOUR),
+            })
+            .returning({ id: orders.id });
+
+          const claimed = await tx
+            .update(uploadedFiles)
+            .set({ orderId: order.id })
+            .where(and(eq(uploadedFiles.id, file.id), isNull(uploadedFiles.orderId)))
+            .returning({ id: uploadedFiles.id });
+          if (claimed.length !== 1) {
+            throw new AppError("FILE_UNAVAILABLE", "This file is already part of another order. Please upload it again.", 409);
+          }
+
+          await tx.insert(printSettings).values({
+            orderId: order.id,
+            fileId: file.id,
+            position: 0,
+            paperSize: "A4",
+            colorMode: input.colorMode,
+            copies: input.copies,
+            pageSelection: selection.normalized,
+            selectedPageCount: selection.count,
+            pricePerPage: price.pricePerPage,
+            printedPages: price.printedPages,
+            subtotal: price.subtotal,
+            imageAdjustment: adjustment,
+            printStorageKey: print.key,
+            printMimeType: print.mimeType,
+            printPageCount: print.pageCount,
+            printPages: print.pages,
+            printSha256: print.sha256,
+          });
+          return order.id;
+        });
+        return { orderId, accessToken };
+      } catch (err) {
+        // Retry only on a (very unlikely) order reference collision.
+        if (isUniqueViolation(err) && attempt < 4) continue;
+        throw err;
+      }
+    }
+    throw new AppError("ORDER_FAILED", "We couldn't create your order. Please try again.", 500);
+  } catch (err) {
+    if (print.created) await deleteObject(print.key).catch(() => undefined);
+    throw err;
+  }
 }
 
 async function loadOrder(db: Db, orderId: string) {
@@ -172,13 +251,17 @@ async function loadOrder(db: Db, orderId: string) {
   return order ?? null;
 }
 
-export async function loadOrderItems(db: Db, orderId: string): Promise<OrderItemView[]> {
-  const rows = await db
+export async function loadOrderRows(db: Db, orderId: string) {
+  return db
     .select({ s: printSettings, f: uploadedFiles })
     .from(printSettings)
     .innerJoin(uploadedFiles, eq(printSettings.fileId, uploadedFiles.id))
     .where(eq(printSettings.orderId, orderId))
-    .orderBy(asc(printSettings.position));
+    .limit(LIMITS.filesPerOrder);
+}
+
+export async function loadOrderItems(db: Db, orderId: string): Promise<OrderItemView[]> {
+  const rows = await loadOrderRows(db, orderId);
   return rows.map(({ s, f }) => ({
     fileId: f.id,
     name: f.originalName,
@@ -192,6 +275,8 @@ export async function loadOrderItems(db: Db, orderId: string): Promise<OrderItem
     pricePerPage: s.pricePerPage,
     printedPages: s.printedPages,
     subtotal: s.subtotal,
+    imageAdjustment: s.imageAdjustment ?? null,
+    imageAdjusted: !!s.imageAdjustment && !isDefaultAdjustment(s.imageAdjustment),
   }));
 }
 

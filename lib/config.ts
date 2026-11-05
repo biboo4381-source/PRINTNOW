@@ -6,13 +6,16 @@
 export const LIMITS = {
   /** Maximum size of a single uploaded file. */
   maxFileBytes: 20 * 1024 * 1024,
-  /** Maximum number of files in one order. */
-  maxFilesPerOrder: 5,
+  /** Each order prints exactly one document (a PDF may have many pages). */
+  filesPerOrder: 1,
   /** Copies per file. */
   minCopies: 1,
   maxCopies: 50,
   /** Upper bound on pages in a single PDF we accept. */
   maxPdfPages: 500,
+  /** Largest image we accept, in megapixels. PNGs are decoded when building the print file, so they get a lower cap. */
+  maxJpegMegapixels: 120,
+  maxPngMegapixels: 40,
 } as const;
 
 export const EXPIRY = {
