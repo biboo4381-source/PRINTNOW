@@ -60,9 +60,18 @@ npm run build && npm run test:e2e
 | Long file names without spaces stretched the payment page past the screen | Grid columns can now shrink (`grid-cols-1` on mobile); E2E now uses a long unbroken file name |
 | Collection code wrapped onto two lines on phones | Smaller monospace size on phones, no wrapping |
 
+## Live environment checks (production, https://printnow-web.vercel.app)
+
+| Check | Result |
+|---|---|
+| Build on Vercel incl. database migrations | ✅ Migrations applied to Neon, placeholder prices seeded |
+| `GET /api/health` | ✅ `{"status":"ok","database":"ok","databaseMode":"postgres","storage":"blob"}` |
+| `GET /api/pricing` | ✅ Rp 500 B&W / Rp 1.500 color from the database |
+| Homepage renders | ✅ HTTP 200 with full content |
+
 ## Not yet tested / known limitations
 
-- **Production environment with Neon + Vercel Blob**: automated tests use embedded Postgres and local file storage. The production deployment needs the Neon database connected (see `docs/DEPLOYMENT.md`); a manual smoke test on the live URL is required after that.
+- **Full order on the live site**: the automated journey runs against embedded Postgres and local storage. On production, the upload → pay → code flow with real Vercel Blob uploads still needs one manual run in a phone browser (checklist in the hand-off message).
 - **Real devices**: phones were emulated in Chromium. A quick manual pass on a real iPhone (Safari) and Android phone is recommended before the demo.
 - **Physical kiosk**: API behaviour is tested, but not yet with Jonathan's kiosk software or printer.
 - **Very large PDFs** (hundreds of pages close to 20 MB) were not load-tested; verification runs inside a 30 s function limit.
