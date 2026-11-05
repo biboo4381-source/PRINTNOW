@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import * as schema from "./schema";
+import { normalizePostgresUrl } from "./url";
 
 /**
  * Database connection.
@@ -25,7 +26,7 @@ async function connect(): Promise<Db> {
   if (databaseMode() === "postgres") {
     const { Pool } = await import("pg");
     const { drizzle } = await import("drizzle-orm/node-postgres");
-    const pool = new Pool({ connectionString: url, max: 5, idleTimeoutMillis: 10_000 });
+    const pool = new Pool({ connectionString: normalizePostgresUrl(url), max: 5, idleTimeoutMillis: 10_000 });
     return drizzle(pool, { schema }) as unknown as Db;
   }
 

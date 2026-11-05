@@ -56,3 +56,11 @@ describe("file checks", () => {
     expect(sanitizeFileName("a".repeat(200) + ".pdf")).toHaveLength(120);
   });
 });
+
+describe("postgres url", async () => {
+  const { normalizePostgresUrl } = await import("@/lib/db/url");
+  it("pins sslmode=require to verify-full and leaves others alone", () => {
+    expect(normalizePostgresUrl("postgresql://u:p@h.neon.tech/db?sslmode=require")).toBe("postgresql://u:p@h.neon.tech/db?sslmode=verify-full");
+    expect(normalizePostgresUrl("postgresql://u:p@localhost/db")).toBe("postgresql://u:p@localhost/db");
+  });
+});
