@@ -303,6 +303,8 @@ test("image: rotate, crop, fill — the kiosk's print file matches the preview",
   const original = await request.get(f.original.downloadPath, { headers: kioskHeaders });
   expect(original.headers()["content-type"]).toBe("image/png");
   expect((await original.body()).equals(quadrantPng(800, 600))).toBe(true);
+  // Finish the job so no order is left in PROCESSING (the kiosk would offer it for recovery).
+  expect((await request.post(`/api/kiosk/orders/${order.orderId}/complete`, { headers: kioskHeaders })).status()).toBe(200);
 });
 
 test("unpaid orders have no usable code, and other browsers can't open the order", async ({ page, request, browser }) => {

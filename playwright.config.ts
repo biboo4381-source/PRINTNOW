@@ -27,9 +27,11 @@ export default defineConfig({
     launchOptions,
   },
   projects: [
-    { name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 800 }, launchOptions } },
-    { name: "mobile", use: { ...devices["Pixel 7"], launchOptions } },
-    { name: "small-phone", use: { ...devices["Desktop Chrome"], viewport: { width: 360, height: 640 }, isMobile: true, hasTouch: true, launchOptions } },
+    { name: "desktop", testMatch: /journey\.spec\.ts/, use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 800 }, launchOptions } },
+    { name: "mobile", testMatch: /journey\.spec\.ts/, use: { ...devices["Pixel 7"], launchOptions } },
+    { name: "small-phone", testMatch: /journey\.spec\.ts/, use: { ...devices["Desktop Chrome"], viewport: { width: 360, height: 640 }, isMobile: true, hasTouch: true, launchOptions } },
+    // 13-inch iPad in landscape (CSS pixels), touch input: the kiosk terminal.
+    { name: "kiosk-ipad", testMatch: /kiosk\.spec\.ts/, use: { ...devices["Desktop Chrome"], viewport: { width: 1366, height: 1024 }, isMobile: true, hasTouch: true, launchOptions } },
   ],
   webServer: {
     command: `npx next start -p ${PORT}`,
@@ -41,6 +43,7 @@ export default defineConfig({
       LOCAL_STORAGE_DIR: path.join(dataDir, "uploads"),
       KIOSK_API_KEYS: `${E2E_KIOSK_ID}:${createHash("sha256").update(E2E_KIOSK_KEY).digest("hex")}`,
       CRON_SECRET: "e2e-cron-secret",
+      PLAYWRIGHT_E2E: "1",
     },
   },
 });

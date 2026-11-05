@@ -13,12 +13,18 @@ Customer-facing website for PRINTNOW self-service printing kiosks. Customers upl
 
 `/` → `/print` (1 Upload) → `/print/adjust` (2 Adjust & Preview) → `/print/settings` (3 Settings + summary) → `/pay/[id]` (4 Demo QRIS) → `/order/[id]` (5 Collection code)
 
+## Kiosk
+
+The touchscreen kiosk (13-inch iPad, simulated printing) lives at **`/kiosk`** in the same app and shares the backend and database. Setup and operation: [docs/KIOSK_GUIDE.md](docs/KIOSK_GUIDE.md).
+
 ## Docs
 
 | Document | For |
 |---|---|
 | [docs/ARCHITECTURE_PROPOSAL.md](docs/ARCHITECTURE_PROPOSAL.md) | Approved architecture (Phase 1) |
-| [docs/KIOSK_API.md](docs/KIOSK_API.md) | Kiosk developer: API to look up, claim, download and complete orders |
+| [docs/KIOSK_PROPOSAL.md](docs/KIOSK_PROPOSAL.md) | Approved kiosk architecture |
+| [docs/KIOSK_GUIDE.md](docs/KIOSK_GUIDE.md) | iPad kiosk setup, staff menu, troubleshooting |
+| [docs/KIOSK_API.md](docs/KIOSK_API.md) | REST API for a future native kiosk / printer service |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Vercel setup, env vars, changing prices, adding kiosks, local dev |
 | [docs/TEST_REPORT.md](docs/TEST_REPORT.md) | Test results against the 16 required scenarios |
 
@@ -38,6 +44,8 @@ Open http://localhost:3000. No database or storage setup is needed locally.
 
 ```
 app/(site)/        customer pages (home, print flow, pay, order, help, privacy)
+app/kiosk/         touchscreen kiosk (screens) + /kiosk/api (cookie-authenticated kiosk routes)
+lib/kiosk/         kiosk types and printer drivers (SimulatedPrinter)
 app/api/           customer API, kiosk API (/api/kiosk/*), cron, health
 lib/               pricing, page ranges, codes, file checks, config,
                    image-layout (shared A4 preview/print maths), print-render (server PDF output)

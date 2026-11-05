@@ -1,6 +1,8 @@
 # PRINTNOW Kiosk Software: Technical Proposal
 
-Status: **Draft, waiting for approval** · Date: 5 November 2026
+Status: **Approved and implemented** (landscape, English, kiosk-01) · Date: 5 November 2026
+
+> Implementation note: the kiosk runs as one full-screen page at `/kiosk` that switches between screens internally (no browser history to get lost in), plus `/kiosk/setup` for pairing. Operation guide: `docs/KIOSK_GUIDE.md`.
 Scope: the kiosk touchscreen interface (13-inch iPad prototype, no physical printer), integrated with the existing PRINTNOW website, backend and database.
 
 ---

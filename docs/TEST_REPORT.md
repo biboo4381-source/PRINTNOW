@@ -7,9 +7,10 @@ Build: Next.js 16.4.5 production build
 
 | Suite | Tool | Result |
 |---|---|---|
-| Unit: pricing, page ranges, codes, file detection, PDF checks, **A4 layout, image metadata/EXIF, crop/rotation maths** | Vitest | **47 / 47 passed** |
-| Integration: orders, **print-ready output**, payment, kiosk flow, cleanup, auth (real Postgres engine via PGlite) | Vitest | **35 / 35 passed** |
-| End-to-end: real browser against the production build | Playwright, 3 devices × 7 specs | **21 / 21 passed** |
+| Unit: pricing, page ranges, codes, file detection, PDF checks, A4 layout, image metadata/EXIF, crop/rotation maths, **printer simulation** | Vitest | **49 / 49 passed** |
+| Integration: orders, print-ready output, payment, kiosk flow, cleanup, auth, **kiosk pairing sessions, print-job preparation, recovery** | Vitest | **43 / 43 passed** |
+| End-to-end, website: real browser against the production build | Playwright, 3 devices × 7 specs | **21 / 21 passed** |
+| End-to-end, **kiosk**: 13-inch iPad landscape (1366×1024, touch) | Playwright, 8 specs | **8 / 8 passed** |
 | Type check / lint / production build | tsc, ESLint, `next build` | **Clean** |
 
 Devices: Desktop 1280×800, Pixel 7 (412×915), small phone 360×640. Every page in the flow is checked for sideways scrolling.
@@ -21,6 +22,25 @@ npm test
 ```bash
 npm run build && npm run test:e2e
 ```
+
+## Kiosk checks
+
+| Requirement | How it is tested | Result |
+|---|---|---|
+| Unpaired devices can't use the kiosk | `/kiosk` → setup; `/kiosk/api/lookup` → 401; wrong key rejected; no cookie set | ✅ |
+| Kiosk key never in the browser | Session cookie is HttpOnly, SameSite=Strict, does not contain the key; tampered/expired sessions and rotated keys are rejected (integration) | ✅ |
+| Home with exactly two options; UPLOAD FILE shows the permanent QR | QR links to `https://printnow-web.vercel.app/print` and is identical after reload (no sessions); Back to home | ✅ |
+| Numeric keypad: enter, delete, clear, confirm | Taps on the on-screen keypad and a physical keyboard; Confirm disabled until 6 digits | ✅ |
+| Invalid / completed / processing codes | "Code not found" (digits kept for correction), "Already printed", "Already being printed" | ✅ |
+| Order confirmation details | Name, format, page count, mode, copies, selected pages, sheets, amount paid; looking at the order doesn't change it; CANCEL / BACK leaves it PAID | ✅ |
+| **Full website → kiosk journey** | Order placed through the real phone website (PDF, pages 1-3, colour, 2 copies) → code at the kiosk → CONFIRM & PRINT → order locked while printing → 6 sheets with real page preview → COMPLETED; the customer's order page shows "Printed"; reusing the code says "Already printed" | ✅ |
+| Uses the actual document and settings | Server re-reads the print file and verifies SHA-256, PDF validity and page count before printing; a tampered checksum marks the order FAILED (integration); sheets = pages × copies, collated | ✅ |
+| No duplicate printing | Two iPads confirm the same code: one prints, the other gets "Already being printed" | ✅ |
+| Printing failure | Simulated paper jam (staff menu) → "Printing stopped, your code still works" → order back to PAID → retry prints | ✅ |
+| Crash recovery | An order left in PROCESSING by this kiosk shows "Unfinished print found" → Release → PAID | ✅ |
+| Shared terminal privacy | Inactivity countdown, then back to home | ✅ |
+| Fits a 13-inch iPad | Every kiosk screen checked for no scrolling at 1366×1024; portrait also usable | ✅ |
+| Simulation clearly labelled | "Simulation mode · no printer" badge, "SIMULATED PRINTING" banner, completion note; completions logged as `OK_SIMULATED` | ✅ |
 
 ## Revision 2 checks (requested list)
 
@@ -70,4 +90,5 @@ npm run build && npm run test:e2e
 - **Mirrored phone photos** (rare EXIF orientations 2/4/5/7) are printed as the nearest rotation without the mirror flip.
 - **Very large PNGs** are capped at 40 megapixels (JPEG at 120 MP), because PNGs must be decoded to build the print PDF.
 - **Printer margins**: the print PDF keeps a 5 mm margin. If Jonathan's printer needs a larger margin, change `PRINT_MARGIN_MM` in `lib/image-layout.ts`; preview and print update together.
-- **Physical kiosk**: the API is tested, but not yet with the kiosk software or the printer.
+- **Kiosk on the real iPad**: tested in an iPad-sized Chromium with touch. Still to do on the real device: Safari, Add to Home Screen, Guided Access, screen wake lock (see `docs/KIOSK_GUIDE.md` §3).
+- **Real printing**: not possible on the prototype (no printer; iPad Safari can't print silently). Printing is simulated and labelled as such.

@@ -72,6 +72,7 @@ describe("print job preparation", () => {
       paperSize: "A4",
       printFilePageCount: 4,
       pages: [1, 2, 3, 4],
+      originalPages: [2, 3, 4, 7],
       totalSheets: 8,
     });
     await expectAppError(prepareJob("kiosk-other", orderId), "NOT_CLAIMED");

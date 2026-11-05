@@ -6,8 +6,11 @@ import { type Db, getDb } from "../db";
 import { type Order, kioskLogs, orders, printSettings, uploadedFiles } from "../db/schema";
 import { AppError } from "../errors";
 import { parsePageSelection } from "../pages";
+import type { PrintJob } from "../kiosk/types";
 import { readObject } from "../storage";
 import { expireIfNeeded, isUuid, loadOrderRows } from "./orders";
+
+export type { PrintJob };
 
 type KioskAction = (typeof kioskLogs.$inferInsert)["action"];
 
@@ -256,26 +259,6 @@ export async function failOrder(
   return { orderId, status: updated.status };
 }
 
-/** Everything a printer needs for one order. */
-export interface PrintJob {
-  orderId: string;
-  orderRef: string;
-  fileId: string;
-  fileName: string;
-  originalFormat: "PDF" | "JPG" | "PNG";
-  paperSize: "A4";
-  colorMode: "BW" | "COLOR";
-  copies: number;
-  /** Pages of the print file to print, in order (1-based). */
-  pages: number[];
-  /** Pages in the print file. */
-  printFilePageCount: number;
-  /** pages × copies, collated. */
-  totalSheets: number;
-  sha256: string;
-  sizeBytes: number;
-}
-
 /**
  * Kiosk step 3 (for the touchscreen kiosk): retrieve the ACTUAL print-ready file, check it is
  * intact (SHA-256 + opens as a PDF with the expected page count) and turn the stored settings
@@ -318,6 +301,14 @@ export async function prepareJob(kioskId: string, orderId: string): Promise<Prin
   const selection = parsePageSelection(s.printPages ?? "all", pageCount);
   if (!selection.ok) return broken(`invalid page list "${s.printPages}"`);
 
+  // Map print-file pages back to the customer's original page numbers (the print file may
+  // contain only the selected pages).
+  const original = parsePageSelection(s.pageSelection, f.pageCount);
+  const originalPages =
+    original.ok && original.pages.length === selection.pages.length && (s.printPages ?? "all") === "all"
+      ? original.pages
+      : selection.pages;
+
   await log(db, { kioskId, action: "DOWNLOAD", result: "OK_PREPARED", orderId });
   return {
     orderId,
@@ -329,6 +320,7 @@ export async function prepareJob(kioskId: string, orderId: string): Promise<Prin
     colorMode: s.colorMode,
     copies: s.copies,
     pages: selection.pages,
+    originalPages,
     printFilePageCount: pageCount,
     totalSheets: selection.pages.length * s.copies,
     sha256: s.printSha256 ?? sha256Hex(bytes),
