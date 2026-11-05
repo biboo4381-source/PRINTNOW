@@ -1,9 +1,12 @@
 import { and, count, desc, eq, gte } from "drizzle-orm";
 import { KIOSK } from "../config";
-import { normalizeCollectionCode } from "../codes";
+import { PDFDocument } from "pdf-lib";
+import { normalizeCollectionCode, sha256Hex } from "../codes";
 import { type Db, getDb } from "../db";
 import { type Order, kioskLogs, orders, printSettings, uploadedFiles } from "../db/schema";
 import { AppError } from "../errors";
+import { parsePageSelection } from "../pages";
+import { readObject } from "../storage";
 import { expireIfNeeded, isUuid, loadOrderRows } from "./orders";
 
 type KioskAction = (typeof kioskLogs.$inferInsert)["action"];
@@ -201,7 +204,7 @@ export async function getFileForKiosk(kioskId: string, orderId: string, fileId: 
 }
 
 /** Step 4: PROCESSING → COMPLETED. Idempotent for the same kiosk. */
-export async function completeOrder(kioskId: string, orderId: string) {
+export async function completeOrder(kioskId: string, orderId: string, opts: { simulated?: boolean } = {}) {
   const db = await getDb();
   const order = await requireOrder(db, orderId);
   if (order.status === "COMPLETED" && order.claimedByKiosk === kioskId) {
@@ -216,7 +219,7 @@ export async function completeOrder(kioskId: string, orderId: string) {
     await log(db, { kioskId, action: "COMPLETE", result: "NOT_CLAIMED", orderId });
     throw new AppError("NOT_CLAIMED", "This order isn't being printed by this kiosk.", 409);
   }
-  await log(db, { kioskId, action: "COMPLETE", result: "OK", orderId });
+  await log(db, { kioskId, action: "COMPLETE", result: opts.simulated ? "OK_SIMULATED" : "OK", orderId });
   return { orderId, status: "COMPLETED" as const, completedAt: done.completedAt!.toISOString() };
 }
 
@@ -224,7 +227,13 @@ export async function completeOrder(kioskId: string, orderId: string) {
  * Step 4 (failure): retryable problems (paper jam, kiosk offline) return the order to PAID
  * so the customer can try again; otherwise it becomes FAILED.
  */
-export async function failOrder(kioskId: string, orderId: string, reason: unknown, retryable: unknown) {
+export async function failOrder(
+  kioskId: string,
+  orderId: string,
+  reason: unknown,
+  retryable: unknown,
+  opts: { simulated?: boolean } = {},
+) {
   const db = await getDb();
   await requireOrder(db, orderId);
   const why = typeof reason === "string" && reason.trim() ? reason.trim().slice(0, 500) : "Unspecified kiosk error";
@@ -242,6 +251,99 @@ export async function failOrder(kioskId: string, orderId: string, reason: unknow
     await log(db, { kioskId, action: "FAIL", result: "NOT_CLAIMED", orderId, error: why });
     throw new AppError("NOT_CLAIMED", "This order isn't being printed by this kiosk.", 409);
   }
-  await log(db, { kioskId, action: "FAIL", result: canRetry ? "RETRYABLE" : "FAILED", orderId, error: why });
+  const result = `${opts.simulated ? "SIMULATED_" : ""}${canRetry ? "RETRYABLE" : "FAILED"}`;
+  await log(db, { kioskId, action: "FAIL", result, orderId, error: why });
   return { orderId, status: updated.status };
+}
+
+/** Everything a printer needs for one order. */
+export interface PrintJob {
+  orderId: string;
+  orderRef: string;
+  fileId: string;
+  fileName: string;
+  originalFormat: "PDF" | "JPG" | "PNG";
+  paperSize: "A4";
+  colorMode: "BW" | "COLOR";
+  copies: number;
+  /** Pages of the print file to print, in order (1-based). */
+  pages: number[];
+  /** Pages in the print file. */
+  printFilePageCount: number;
+  /** pages × copies, collated. */
+  totalSheets: number;
+  sha256: string;
+  sizeBytes: number;
+}
+
+/**
+ * Kiosk step 3 (for the touchscreen kiosk): retrieve the ACTUAL print-ready file, check it is
+ * intact (SHA-256 + opens as a PDF with the expected page count) and turn the stored settings
+ * into a print job. A missing or damaged file marks the order FAILED with a reason.
+ */
+export async function prepareJob(kioskId: string, orderId: string): Promise<PrintJob> {
+  const db = await getDb();
+  const order = await requireOrder(db, orderId);
+  if (order.status !== "PROCESSING" || order.claimedByKiosk !== kioskId) {
+    await log(db, { kioskId, action: "DOWNLOAD", result: "NOT_CLAIMED", orderId });
+    throw new AppError("NOT_CLAIMED", "Claim this order before printing it.", 409);
+  }
+  const [row] = await db
+    .select({ f: uploadedFiles, s: printSettings })
+    .from(printSettings)
+    .innerJoin(uploadedFiles, eq(printSettings.fileId, uploadedFiles.id))
+    .where(eq(printSettings.orderId, orderId))
+    .limit(1);
+
+  const broken = async (detail: string): Promise<never> => {
+    await log(db, { kioskId, action: "DOWNLOAD", result: "FILE_INVALID", orderId, error: detail });
+    await failOrder(kioskId, orderId, `Print file problem: ${detail}`, false);
+    throw new AppError("PRINT_FILE_INVALID", "This document can't be printed. Please contact support with your order reference.", 422);
+  };
+
+  if (!row || row.f.deletedAt || !row.s.printStorageKey) return broken("print file missing");
+  const { f, s } = row;
+  const bytes = await readObject(s.printStorageKey!);
+  if (!bytes) return broken("print file not in storage");
+  if (s.printSha256 && sha256Hex(bytes) !== s.printSha256) return broken("checksum mismatch");
+
+  let pageCount: number;
+  try {
+    pageCount = (await PDFDocument.load(bytes, { updateMetadata: false })).getPageCount();
+  } catch {
+    return broken("print file is not a readable PDF");
+  }
+  if (s.printPageCount && pageCount !== s.printPageCount) return broken(`page count ${pageCount} ≠ ${s.printPageCount}`);
+
+  const selection = parsePageSelection(s.printPages ?? "all", pageCount);
+  if (!selection.ok) return broken(`invalid page list "${s.printPages}"`);
+
+  await log(db, { kioskId, action: "DOWNLOAD", result: "OK_PREPARED", orderId });
+  return {
+    orderId,
+    orderRef: order.orderRef,
+    fileId: f.id,
+    fileName: f.originalName,
+    originalFormat: f.format,
+    paperSize: s.paperSize,
+    colorMode: s.colorMode,
+    copies: s.copies,
+    pages: selection.pages,
+    printFilePageCount: pageCount,
+    totalSheets: selection.pages.length * s.copies,
+    sha256: s.printSha256 ?? sha256Hex(bytes),
+    sizeBytes: bytes.length,
+  };
+}
+
+/** The order this kiosk was printing when it stopped (e.g. iPad closed mid-print), if any. */
+export async function getActiveJobForKiosk(kioskId: string) {
+  const db = await getDb();
+  const [order] = await db
+    .select()
+    .from(orders)
+    .where(and(eq(orders.status, "PROCESSING"), eq(orders.claimedByKiosk, kioskId)))
+    .orderBy(desc(orders.processingAt))
+    .limit(1);
+  return order ? kioskOrderView(db, order) : null;
 }
