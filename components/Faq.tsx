@@ -6,8 +6,9 @@ export const FAQ_ITEMS: { q: string; a: React.ReactNode }[] = [
     q: "How do I upload my document?",
     a: (
       <>
-        Tap <strong>Start printing</strong>, then drag your files into the box or tap <strong>Browse files</strong>. On a phone
-        you can pick files from your storage or photo gallery. You can add up to {LIMITS.maxFilesPerOrder} files per order.
+        Tap <strong>Start printing</strong>, then drag your file into the box or tap <strong>Browse files</strong>. On a phone
+        you can pick a file from your storage or photo gallery. Each order prints one document. A PDF can have as many pages as
+        you need. For a second document, simply place another order.
       </>
     ),
   },
@@ -21,12 +22,21 @@ export const FAQ_ITEMS: { q: string; a: React.ReactNode }[] = [
     ),
   },
   {
+    q: "Can I adjust a photo before printing?",
+    a: (
+      <>
+        Yes. For JPG and PNG images you can rotate, crop, resize and move the picture on an A4 page, or use{" "}
+        <strong>Fit to A4</strong>. The preview shows exactly what will be printed, and the dashed line marks the printable area.
+      </>
+    ),
+  },
+  {
     q: "How do I choose my print settings?",
     a: (
       <>
-        After uploading, choose <strong>Black &amp; White</strong> or <strong>Color</strong>, the number of copies, and whether to
-        print all pages or only some (for example <em>1-3, 5</em>). Everything is printed on A4 paper, single-sided. The price
-        updates as you change settings.
+        For a PDF, choose to print all pages or only some (tap the pages, or type e.g. <em>1-3, 5</em>). Then choose{" "}
+        <strong>Black &amp; White</strong> or <strong>Color</strong> and the number of copies. Everything is printed on A4 paper,
+        single-sided. The price updates as you change settings.
       </>
     ),
   },

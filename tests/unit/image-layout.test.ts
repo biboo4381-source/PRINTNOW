@@ -90,3 +90,18 @@ describe("image metadata", () => {
     expect(readImageMeta(new TextEncoder().encode("hello"))).toBeNull();
   });
 });
+
+describe("crop view conversion", () => {
+  const crop = { x: 0.1, y: 0.2, w: 0.3, h: 0.5 };
+  it.each([0, 90, 180, 270] as const)("round-trips at %i°", async (r) => {
+    const { cropFromView, cropToView } = await import("@/lib/image-layout");
+    const back = cropFromView(cropToView(crop, r), r);
+    for (const k of ["x", "y", "w", "h"] as const) expect(back[k]).toBeCloseTo(crop[k]);
+  });
+
+  it("maps the top-left corner correctly for a 90° turn", async () => {
+    const { cropToView } = await import("@/lib/image-layout");
+    // After turning clockwise, the original top-left (0,0) ends up at the top-right.
+    expect(cropToView({ x: 0, y: 0, w: 0.25, h: 0.5 }, 90)).toEqual({ x: 0.5, y: 0, w: 0.5, h: 0.25 });
+  });
+});

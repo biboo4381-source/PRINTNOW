@@ -5,7 +5,7 @@
 | Piece | Service | Notes |
 |---|---|---|
 | Website + API | Vercel project **`printnow-web`** (team "bside2") | Linked to GitHub `biboo4381-source/PRINTNOW`. Every push to the production branch deploys automatically. Functions run in `sin1` (Singapore). |
-| File storage | Vercel Blob store **`printnow-uploads`** (private, `sin1`) | Connected to the project; provides `BLOB_READ_WRITE_TOKEN`. |
+| File storage | Vercel Blob store **`printnow-uploads`** (private, `sin1`) | Connected to the project; provides `BLOB_READ_WRITE_TOKEN`. Holds `uploads/…` (customer originals) and `prints/…` (server-generated print-ready PDFs). |
 | Database | **Neon Postgres** via Vercel Marketplace | Provides `DATABASE_URL`. Migrations run automatically during each build (`npm run build` → `npm run db:migrate`). |
 | Daily cleanup | Vercel Cron → `/api/cron/cleanup` at 19:00 UTC (02:00 WIB) | Defined in `vercel.json`. |
 

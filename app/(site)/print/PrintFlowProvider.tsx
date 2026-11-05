@@ -1,11 +1,14 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { LIMITS } from "@/lib/config";
+import { clearDraftFile, loadDraftFile, saveDraftFile } from "@/lib/client/file-store";
 import { type UploadMode, makeThumbnail, precheckFile, uploadAndVerify } from "@/lib/client/upload";
+import { DEFAULT_ADJUSTMENT, type ImageAdjustment } from "@/lib/image-layout";
 import { parsePageSelection } from "@/lib/pages";
 import { type ColorMode, type PriceTable, priceLine } from "@/lib/pricing";
 
+/** The single document in this order. */
 export interface DraftFile {
   localId: string;
   name: string;
@@ -16,24 +19,37 @@ export interface DraftFile {
   fileId?: string;
   format?: "PDF" | "JPG" | "PNG";
   pageCount?: number;
+  /** Images: size as displayed by the browser (after camera orientation). */
+  imageWidth?: number | null;
+  imageHeight?: number | null;
+  /** Small preview of the upload. */
   thumb?: string;
 }
 
-export interface FileSettings {
+export interface PrintSettings {
   colorMode: ColorMode;
   copies: number;
   pageMode: "all" | "custom";
   customPages: string;
+  adjustment: ImageAdjustment;
 }
 
-export const DEFAULT_SETTINGS: FileSettings = { colorMode: "BW", copies: 1, pageMode: "all", customPages: "" };
+export const DEFAULT_SETTINGS: PrintSettings = {
+  colorMode: "BW",
+  copies: 1,
+  pageMode: "all",
+  customPages: "",
+  adjustment: DEFAULT_ADJUSTMENT,
+};
 
 export interface LineSummary {
   file: DraftFile;
-  settings: FileSettings;
+  settings: PrintSettings;
+  isImage: boolean;
   pageSelection: string;
   selectedPageCount: number;
-  error: string | null;
+  pageError: string | null;
+  copiesError: string | null;
   pricePerPage: number;
   printedPages: number;
   subtotal: number;
@@ -42,25 +58,26 @@ export interface LineSummary {
 interface PrintFlow {
   prices: PriceTable;
   uploadMode: UploadMode;
-  files: DraftFile[];
-  readyFiles: DraftFile[];
+  file: DraftFile | null;
+  ready: boolean;
   hydrated: boolean;
   notice: string | null;
-  addFiles: (list: FileList | File[]) => void;
-  removeFile: (localId: string) => void;
-  replaceFile: (localId: string, file: File) => void;
-  settingsFor: (fileId: string) => FileSettings;
-  updateSettings: (fileId: string, patch: Partial<FileSettings>) => void;
-  lines: LineSummary[];
-  total: number;
-  totalPrintedPages: number;
-  linesValid: boolean;
+  /** Uploads a document, replacing any current one. */
+  chooseFile: (file: File) => void;
+  /** Handles a drop or multi-select: uses the first file and explains why. */
+  chooseFromList: (list: FileList | File[]) => void;
+  removeFile: () => void;
+  settings: PrintSettings;
+  updateSettings: (patch: Partial<PrintSettings>) => void;
+  /** The original file bytes kept in this browser (memory, then IndexedDB). Null if unavailable. */
+  getSource: () => Promise<Blob | null>;
+  line: LineSummary | null;
   reset: () => void;
   dismissNotice: () => void;
 }
 
 const Ctx = createContext<PrintFlow | null>(null);
-const STORAGE_KEY = "printnow:draft:v1";
+const STORAGE_KEY = "printnow:draft:v2";
 
 export function usePrintFlow() {
   const ctx = useContext(Ctx);
@@ -77,186 +94,170 @@ export function PrintFlowProvider({
   uploadMode: UploadMode;
   children: React.ReactNode;
 }) {
-  const [files, setFiles] = useState<DraftFile[]>([]);
-  const [settings, setSettings] = useState<Record<string, FileSettings>>({});
+  const [file, setFile] = useState<DraftFile | null>(null);
+  const [settings, setSettings] = useState<PrintSettings>(DEFAULT_SETTINGS);
   const [hydrated, setHydrated] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const sourceRef = useRef<Blob | null>(null);
 
-  // Restore a draft after reload / back navigation (only fully verified files survive).
-  // sessionStorage only exists in the browser, so this must run after mount; reading it during
-  // render would make the server and client HTML differ.
+  // Restore after reload / back navigation. sessionStorage only exists in the browser, so this
+  // must run after mount; reading it during render would make server and client HTML differ.
   useEffect(() => {
-    let saved: { files?: DraftFile[]; settings?: Record<string, FileSettings> } = {};
+    let saved: { file?: DraftFile | null; settings?: Partial<PrintSettings> } = {};
     try {
       saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY) ?? "{}");
     } catch {
       /* ignore broken storage */
     }
-    const restored = (saved.files ?? []).filter((f) => f.status === "ready" && f.fileId);
+    const restored = saved.file && saved.file.status === "ready" && saved.file.fileId ? saved.file : null;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync from browser storage after mount
-    setFiles(restored);
-    setSettings(saved.settings ?? {});
+    setFile(restored);
+    setSettings({ ...DEFAULT_SETTINGS, ...(saved.settings ?? {}) });
     setHydrated(true);
   }, []);
 
   useEffect(() => {
     if (!hydrated) return;
-    const ready = files.filter((f) => f.status === "ready");
+    const keep = file?.status === "ready" ? file : null;
     try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ files: ready, settings }));
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ file: keep, settings }));
     } catch {
-      // Storage full (large thumbnails): retry without thumbnails.
       try {
-        sessionStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify({ files: ready.map((f) => ({ ...f, thumb: undefined })), settings }),
-        );
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ file: keep && { ...keep, thumb: undefined }, settings }));
       } catch {
-        /* give up silently: the in-memory state still works */
+        /* in-memory state still works */
       }
     }
-  }, [files, settings, hydrated]);
+  }, [file, settings, hydrated]);
 
   const patchFile = useCallback((localId: string, patch: Partial<DraftFile>) => {
-    setFiles((prev) => prev.map((f) => (f.localId === localId ? { ...f, ...patch } : f)));
+    setFile((prev) => (prev && prev.localId === localId ? { ...prev, ...patch } : prev));
   }, []);
 
-  const startUpload = useCallback(
-    (localId: string, file: File) => {
-      makeThumbnail(file).then((thumb) => thumb && patchFile(localId, { thumb }));
+  const chooseFile = useCallback(
+    (chosen: File) => {
+      setNotice(null);
+      const problem = precheckFile(chosen);
+      const localId = crypto.randomUUID();
+      sourceRef.current = problem ? null : chosen;
+      void clearDraftFile();
+      // A new document starts with fresh settings (pages/crop from the old file wouldn't apply).
+      setSettings((s) => ({ ...DEFAULT_SETTINGS, colorMode: s.colorMode, copies: s.copies }));
+      setFile({
+        localId,
+        name: chosen.name,
+        sizeBytes: chosen.size,
+        status: problem ? "error" : "uploading",
+        progress: 0,
+        error: problem ?? undefined,
+      });
+      if (problem) return;
+      void saveDraftFile(chosen);
+      makeThumbnail(chosen).then((thumb) => thumb && patchFile(localId, { thumb }));
       uploadAndVerify(
-        file,
+        chosen,
         uploadMode,
         (pct) => patchFile(localId, { progress: Math.min(99, Math.round(pct)) }),
         () => patchFile(localId, { status: "verifying", progress: 100 }),
       )
-        .then((verified) => {
+        .then((v) =>
           patchFile(localId, {
             status: "ready",
             progress: 100,
-            fileId: verified.id,
-            format: verified.format,
-            pageCount: verified.pageCount,
-            name: verified.name,
-          });
-        })
-        .catch((err: unknown) => {
-          patchFile(localId, {
-            status: "error",
-            error: err instanceof Error ? err.message : "Upload failed. Please try again.",
-          });
-        });
+            fileId: v.id,
+            format: v.format,
+            pageCount: v.pageCount,
+            name: v.name,
+            imageWidth: v.imageWidth,
+            imageHeight: v.imageHeight,
+          }),
+        )
+        .catch((err: unknown) =>
+          patchFile(localId, { status: "error", error: err instanceof Error ? err.message : "Upload failed. Please try again." }),
+        );
     },
     [patchFile, uploadMode],
   );
 
-  const addFiles = useCallback(
+  const chooseFromList = useCallback(
     (list: FileList | File[]) => {
-      const incoming = Array.from(list);
-      const slots = LIMITS.maxFilesPerOrder - files.length;
-      if (slots <= 0) {
-        setNotice(`You can add up to ${LIMITS.maxFilesPerOrder} files per order.`);
-        return;
+      const files = Array.from(list);
+      if (files.length === 0) return;
+      chooseFile(files[0]);
+      if (files.length > 1) {
+        setNotice(`One document per order: we used “${files[0].name}”. Place another order for your other files.`);
       }
-      if (incoming.length > slots) {
-        setNotice(`Only ${slots} more file${slots === 1 ? "" : "s"} can be added (maximum ${LIMITS.maxFilesPerOrder} per order).`);
-      } else {
-        setNotice(null);
-      }
-      const accepted = incoming.slice(0, slots);
-      const drafts: DraftFile[] = accepted.map((file) => {
-        const problem = precheckFile(file);
-        return {
-          localId: crypto.randomUUID(),
-          name: file.name,
-          sizeBytes: file.size,
-          status: problem ? "error" : "uploading",
-          progress: 0,
-          error: problem ?? undefined,
-        };
-      });
-      setFiles((prev) => [...prev, ...drafts]);
-      drafts.forEach((d, i) => d.status === "uploading" && startUpload(d.localId, accepted[i]));
     },
-    [files.length, startUpload],
+    [chooseFile],
   );
 
-  const removeFile = useCallback((localId: string) => {
+  const removeFile = useCallback(() => {
+    sourceRef.current = null;
+    void clearDraftFile();
     setNotice(null);
-    setFiles((prev) => prev.filter((f) => f.localId !== localId));
+    setFile(null);
+    setSettings(DEFAULT_SETTINGS);
   }, []);
 
-  const replaceFile = useCallback(
-    (localId: string, file: File) => {
-      const problem = precheckFile(file);
-      patchFile(localId, {
-        name: file.name,
-        sizeBytes: file.size,
-        status: problem ? "error" : "uploading",
-        progress: 0,
-        error: problem ?? undefined,
-        fileId: undefined,
-        format: undefined,
-        pageCount: undefined,
-        thumb: undefined,
-      });
-      if (!problem) startUpload(localId, file);
-    },
-    [patchFile, startUpload],
-  );
-
-  const settingsFor = useCallback((fileId: string) => settings[fileId] ?? DEFAULT_SETTINGS, [settings]);
-  const updateSettings = useCallback((fileId: string, patch: Partial<FileSettings>) => {
-    setSettings((prev) => ({ ...prev, [fileId]: { ...(prev[fileId] ?? DEFAULT_SETTINGS), ...patch } }));
+  const getSource = useCallback(async () => {
+    if (sourceRef.current) return sourceRef.current;
+    const stored = await loadDraftFile();
+    if (stored) sourceRef.current = stored;
+    return stored;
   }, []);
 
-  const readyFiles = useMemo(() => files.filter((f) => f.status === "ready" && f.fileId), [files]);
+  const updateSettings = useCallback((patch: Partial<PrintSettings>) => setSettings((s) => ({ ...s, ...patch })), []);
 
-  const lines = useMemo<LineSummary[]>(
-    () =>
-      readyFiles.map((file) => {
-        const s = settings[file.fileId!] ?? DEFAULT_SETTINGS;
-        const pageCount = file.pageCount ?? 1;
-        const selection = s.pageMode === "all" ? parsePageSelection("all", pageCount) : parsePageSelection(s.customPages, pageCount);
-        const copies = Number.isInteger(s.copies) ? s.copies : 0;
-        const copiesError = !Number.isInteger(s.copies)
-          ? "Enter the number of copies."
-          : copies < LIMITS.minCopies || copies > LIMITS.maxCopies
-            ? `Copies must be between ${LIMITS.minCopies} and ${LIMITS.maxCopies}.`
-            : null;
-        const count = selection.ok ? selection.count : 0;
-        const price = priceLine(prices, { selectedPageCount: count, copies: Math.max(0, copies), colorMode: s.colorMode });
-        return {
-          file,
-          settings: s,
-          pageSelection: selection.ok ? selection.normalized : "",
-          selectedPageCount: count,
-          error: selection.ok ? copiesError : selection.error,
-          ...price,
-        };
-      }),
-    [readyFiles, settings, prices],
-  );
+  const ready = !!file && file.status === "ready" && !!file.fileId;
+
+  const line = useMemo<LineSummary | null>(() => {
+    if (!file || !ready) return null;
+    const isImage = file.format === "JPG" || file.format === "PNG";
+    const pageCount = file.pageCount ?? 1;
+    const selection =
+      isImage || settings.pageMode === "all"
+        ? parsePageSelection("all", pageCount)
+        : parsePageSelection(settings.customPages, pageCount);
+    const copiesValid = Number.isInteger(settings.copies);
+    const copies = copiesValid ? settings.copies : 0;
+    const copiesError = !copiesValid
+      ? "Enter the number of copies."
+      : copies < LIMITS.minCopies || copies > LIMITS.maxCopies
+        ? `Copies must be between ${LIMITS.minCopies} and ${LIMITS.maxCopies}.`
+        : null;
+    const count = selection.ok ? selection.count : 0;
+    const price = priceLine(prices, { selectedPageCount: count, copies: Math.max(0, copies), colorMode: settings.colorMode });
+    return {
+      file,
+      settings,
+      isImage,
+      pageSelection: selection.ok ? selection.normalized : "",
+      selectedPageCount: count,
+      pageError: selection.ok ? null : selection.error,
+      copiesError,
+      ...price,
+    };
+  }, [file, ready, settings, prices]);
 
   const value: PrintFlow = {
     prices,
     uploadMode,
-    files,
-    readyFiles,
+    file,
+    ready,
     hydrated,
     notice,
-    addFiles,
+    chooseFile,
+    chooseFromList,
     removeFile,
-    replaceFile,
-    settingsFor,
+    settings,
     updateSettings,
-    lines,
-    total: lines.reduce((s, l) => s + l.subtotal, 0),
-    totalPrintedPages: lines.reduce((s, l) => s + l.printedPages, 0),
-    linesValid: lines.length > 0 && lines.every((l) => !l.error),
+    getSource,
+    line,
     reset: () => {
-      setFiles([]);
-      setSettings({});
+      sourceRef.current = null;
+      void clearDraftFile();
+      setFile(null);
+      setSettings(DEFAULT_SETTINGS);
       try {
         sessionStorage.removeItem(STORAGE_KEY);
       } catch {

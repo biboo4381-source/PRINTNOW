@@ -8,6 +8,8 @@ export interface VerifiedFileDto {
   format: "PDF" | "JPG" | "PNG";
   sizeBytes: number;
   pageCount: number;
+  imageWidth: number | null;
+  imageHeight: number | null;
 }
 
 export class UploadError extends Error {}

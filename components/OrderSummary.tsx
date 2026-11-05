@@ -16,8 +16,13 @@ export function OrderSummary({ order }: { order: OrderView }) {
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold" title={item.name}>{item.name}</p>
                 <p className="text-sm text-ink-muted">
-                  {item.colorMode === "COLOR" ? "Color" : "Black & White"} · {item.copies} cop{item.copies === 1 ? "y" : "ies"} · Pages{" "}
-                  {item.pageSelection === "all" ? `all (${item.pageCount})` : item.pageSelection} · A4
+                  {item.colorMode === "COLOR" ? "Color" : "Black & White"} · {item.copies} cop{item.copies === 1 ? "y" : "ies"} ·{" "}
+                  {item.format === "PDF"
+                    ? `Pages ${item.pageSelection === "all" ? `all (${item.pageCount})` : item.pageSelection}`
+                    : item.imageAdjusted
+                      ? "Image adjusted"
+                      : "Fitted to A4"}{" "}
+                  · A4
                 </p>
                 <p className="text-sm text-ink-muted">
                   {item.printedPages} printed × {formatRupiah(item.pricePerPage)}

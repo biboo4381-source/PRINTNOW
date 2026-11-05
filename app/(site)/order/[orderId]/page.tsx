@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { CircleCheck, CircleX, Clock, Keyboard, ListChecks, LoaderCircle, MapPin, Printer, Smartphone } from "lucide-react";
 import { OrderNotFound } from "@/components/OrderNotFound";
 import { OrderSummary } from "@/components/OrderSummary";
-import { Stepper } from "@/components/Stepper";
+import { STEP, Stepper } from "@/components/Stepper";
 import { ButtonLink, Card, Container } from "@/components/ui";
 import { SUPPORT_CONTACT } from "@/lib/config";
 import { loadCustomerOrder } from "@/lib/order-page";
@@ -30,7 +30,7 @@ export default async function OrderPage({ params }: { params: Promise<{ orderId:
 
   return (
     <Container className="max-w-3xl py-6 sm:py-10">
-      <Stepper current={order.status === "COMPLETED" ? 4 : 3} />
+      <Stepper current={order.status === "COMPLETED" ? STEP.done : STEP.collect} />
       <StatusHeader order={order} />
 
       {order.status === "PAID" && order.collectionCode && (

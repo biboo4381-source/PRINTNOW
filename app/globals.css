@@ -45,6 +45,8 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* Long file names without spaces must wrap instead of widening the page. */
+  overflow-wrap: break-word;
 }
 
 h1,

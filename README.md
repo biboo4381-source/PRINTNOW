@@ -1,6 +1,6 @@
 # PRINTNOW: Upload Website
 
-Customer-facing website for PRINTNOW self-service printing kiosks. Customers upload documents, choose print settings, see the price, complete a **simulated (demo) QRIS payment**, and receive a **collection code** to print at a PRINTNOW kiosk.
+Customer-facing website for PRINTNOW self-service printing kiosks. Customers upload **one document per order** (PDF, JPG or PNG), preview it (choose PDF pages, or crop/rotate/resize a photo on an A4 page), choose print settings, see the price, complete a **simulated (demo) QRIS payment**, and receive a **collection code** to print at a PRINTNOW kiosk. The server prepares a print-ready PDF that matches the customer's preview.
 
 ## Stack
 
@@ -11,7 +11,7 @@ Customer-facing website for PRINTNOW self-service printing kiosks. Customers upl
 
 ## Customer journey
 
-`/` → `/print` (upload) → `/print/settings` → `/print/review` → `/pay/[id]` (demo QRIS) → `/order/[id]` (collection code)
+`/` → `/print` (1 Upload) → `/print/adjust` (2 Adjust & Preview) → `/print/settings` (3 Settings + summary) → `/pay/[id]` (4 Demo QRIS) → `/order/[id]` (5 Collection code)
 
 ## Docs
 
@@ -39,7 +39,8 @@ Open http://localhost:3000. No database or storage setup is needed locally.
 ```
 app/(site)/        customer pages (home, print flow, pay, order, help, privacy)
 app/api/           customer API, kiosk API (/api/kiosk/*), cron, health
-lib/               pricing, page ranges, codes, file checks, config
+lib/               pricing, page ranges, codes, file checks, config,
+                   image-layout (shared A4 preview/print maths), print-render (server PDF output)
 lib/services/      orders, payments, kiosk, cleanup (all business rules)
 lib/db/            Drizzle schema + connection        drizzle/  SQL migrations
 tests/             unit, integration (PGlite), e2e (Playwright)

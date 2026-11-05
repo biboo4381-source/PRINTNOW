@@ -4,8 +4,8 @@ import { ButtonLink, Card, Container } from "@/components/ui";
 import { LIMITS } from "@/lib/config";
 
 const steps = [
-  { icon: Upload, title: "Upload your document", text: "PDF, JPG or PNG, straight from your phone or computer." },
-  { icon: CreditCard, title: "Configure & pay", text: "Pick color, copies and pages. See the price instantly, then pay." },
+  { icon: Upload, title: "Upload & adjust", text: "Send a PDF, JPG or PNG. Choose pages, or crop and fit your photo to A4." },
+  { icon: CreditCard, title: "Choose settings & pay", text: "Pick color and copies. See the price instantly, then pay." },
   { icon: Printer, title: "Collect at a kiosk", text: "Enter your collection code at any PRINTNOW kiosk and take your prints." },
 ];
 
@@ -77,8 +77,8 @@ export default function HomePage() {
             <div>
               <h2 className="text-2xl font-extrabold">Supported files</h2>
               <p className="mt-1 text-ink-muted">
-                Up to {LIMITS.maxFilesPerOrder} files per order, {LIMITS.maxFileBytes / (1024 * 1024)} MB each. Printed on A4 paper in
-                black &amp; white or color.
+                One document per order, up to {LIMITS.maxFileBytes / (1024 * 1024)} MB. PDFs can have many pages; photos can be
+                cropped, rotated and fitted to A4. Printed in black &amp; white or color.
               </p>
             </div>
             <ul className="flex flex-wrap gap-3" aria-label="Supported formats">

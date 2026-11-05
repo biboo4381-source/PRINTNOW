@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { twMerge } from "tailwind-merge";
 import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 import { CircleAlert, CircleCheck, Info, TriangleAlert } from "lucide-react";
@@ -20,7 +21,8 @@ const sizes: Record<Size, string> = {
 };
 
 export function buttonClass(variant: Variant = "primary", size: Size = "md", extra?: string) {
-  return clsx(base, variants[variant], sizes[size], extra);
+  // twMerge lets per-use classes (e.g. px-0, h-12) reliably override the defaults.
+  return twMerge(clsx(base, variants[variant], sizes[size], extra));
 }
 
 export function Button({
@@ -42,7 +44,7 @@ export function ButtonLink({
 }
 
 export function Card({ className, ...props }: ComponentProps<"div">) {
-  return <div className={clsx("rounded-[var(--radius-card)] bg-white shadow-[var(--shadow-card)]", className)} {...props} />;
+  return <div className={twMerge(clsx("rounded-[var(--radius-card)] bg-white shadow-[var(--shadow-card)]", className))} {...props} />;
 }
 
 const alertStyles = {
@@ -84,7 +86,7 @@ export function PageTitle({ eyebrow, title, subtitle }: { eyebrow?: string; titl
     <div className="mb-6">
       {eyebrow && <p className="mb-1 text-sm font-semibold uppercase tracking-wider text-brand">{eyebrow}</p>}
       <h1 className="text-[1.75rem] font-extrabold sm:text-4xl">{title}</h1>
-      {subtitle && <p className="mt-2 max-w-2xl text-lg text-ink-muted">{subtitle}</p>}
+      {subtitle && <p className="mt-2 max-w-2xl text-lg text-ink-muted [overflow-wrap:anywhere]">{subtitle}</p>}
     </div>
   );
 }

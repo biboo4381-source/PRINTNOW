@@ -195,3 +195,38 @@ export function drawPreview(
   }
   ctx.restore();
 }
+
+/**
+ * The crop is stored on the un-rotated image, but customers crop while looking at the rotated
+ * image. These convert a normalised rectangle between the two views.
+ */
+export function cropToView(c: CropRect, rotation: Rotation): CropRect {
+  switch (rotation) {
+    case 90:
+      return { x: 1 - (c.y + c.h), y: c.x, w: c.h, h: c.w };
+    case 180:
+      return { x: 1 - (c.x + c.w), y: 1 - (c.y + c.h), w: c.w, h: c.h };
+    case 270:
+      return { x: c.y, y: 1 - (c.x + c.w), w: c.h, h: c.w };
+    default:
+      return { ...c };
+  }
+}
+
+export function cropFromView(v: CropRect, rotation: Rotation): CropRect {
+  switch (rotation) {
+    case 90:
+      return { x: v.y, y: 1 - (v.x + v.w), w: v.h, h: v.w };
+    case 180:
+      return { x: 1 - (v.x + v.w), y: 1 - (v.y + v.h), w: v.w, h: v.h };
+    case 270:
+      return { x: 1 - (v.y + v.h), y: v.x, w: v.h, h: v.w };
+    default:
+      return { ...v };
+  }
+}
+
+/** Effective print resolution (dots per inch) of the placed image. */
+export function effectiveDpi(p: Placement): number {
+  return 25.4 / p.scale;
+}

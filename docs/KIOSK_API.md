@@ -1,8 +1,12 @@
 # PRINTNOW Kiosk Integration API
 
 For: **Jonathan (kiosk developer)**
-Base URL: the production site, e.g. `https://<printnow-domain>` (see `docs/DEPLOYMENT.md`)
+Base URL: `https://printnow-web.vercel.app`
 Format: HTTPS + JSON. All times are ISO-8601 UTC. Money is integer Rupiah.
+
+> **Revision 2 (Nov 2026):** each order now contains **exactly one document**, and the server prepares a
+> **print-ready PDF** for you. For photos it already includes the customer's crop/rotate/zoom on an A4 page.
+> For PDFs with selected pages it contains only those pages. **Always print the `print` file.**
 
 ## 1. Authentication
 
@@ -30,8 +34,8 @@ POST /api/kiosk/lookup {code}              → show "Is this your order?" screen
 POST /api/kiosk/orders/{id}/claim {code}   → PAID → PROCESSING (only one kiosk can win)
         │
         ▼
-GET  /api/kiosk/orders/{id}/files/{fileId} → download each file, apply its settings, print
-        │
+GET  files[0].downloadPath                  → the print-ready PDF (follow redirects!)
+        │  print it: pages = files[0].print.pages, copies = settings.copies, mode = settings.colorMode
         ├── success → POST /api/kiosk/orders/{id}/complete            → COMPLETED (final)
         └── problem → POST /api/kiosk/orders/{id}/fail {reason, retryable}
                          retryable=true  → back to PAID (customer can try again)
@@ -52,50 +56,55 @@ The server is forgiving: `pn 482 917`, `PN-482917` and `482917` are all accepted
 
 Verify a code and get the order summary. **Does not change the order.**
 
-Request:
-```json
-{ "code": "PN482917" }
-```
+Request: `{ "code": "PN482917" }`
 
-Response `200`:
+Response `200` (photo example):
 ```json
 {
   "order": {
     "orderId": "8a3f2c4e-1b7d-4f0a-9c55-0d6b2e1f7a90",
     "orderRef": "PNO-261105-7KQ2",
     "status": "PAID",
-    "totalPrice": 9500,
+    "totalPrice": 3000,
     "paidAt": "2026-11-05T09:12:44.000Z",
     "expiresAt": "2026-11-12T09:12:44.000Z",
-    "totalPrintedPages": 7,
+    "totalPrintedPages": 2,
     "files": [
       {
         "fileId": "c19e0a77-5f2d-4b8e-8f0e-2a6b9d1c3e44",
-        "name": "Thesis Final.pdf",
-        "format": "PDF",
-        "pageCount": 5,
-        "downloadPath": "/api/kiosk/orders/8a3f2c4e-.../files/c19e0a77-...",
+        "name": "holiday.jpg",
+        "format": "JPG",
+        "pageCount": 1,
+        "downloadPath": "/api/kiosk/orders/8a3f…/files/c19e…?variant=print",
+        "print": {
+          "downloadPath": "/api/kiosk/orders/8a3f…/files/c19e…?variant=print",
+          "mimeType": "application/pdf",
+          "pageCount": 1,
+          "pages": "all",
+          "sha256": "9b1c…"
+        },
+        "original": {
+          "downloadPath": "/api/kiosk/orders/8a3f…/files/c19e…?variant=original",
+          "mimeType": "image/jpeg",
+          "pageCount": 1,
+          "sha256": "41d0…"
+        },
         "settings": {
           "paperSize": "A4",
           "colorMode": "COLOR",
           "copies": 2,
-          "pages": "1-2,4",
-          "selectedPageCount": 3,
-          "printedPages": 6
+          "pages": "all",
+          "selectedPageCount": 1,
+          "printedPages": 2,
+          "imageAdjustment": { "rotation": 90, "crop": { "x": 0, "y": 0.1, "w": 1, "h": 0.8 }, "zoom": 1.08, "offsetX": 0, "offsetY": 0 }
         }
-      },
-      {
-        "fileId": "5b0d…",
-        "name": "poster.png",
-        "format": "PNG",
-        "pageCount": 1,
-        "downloadPath": "/api/kiosk/orders/8a3f…/files/5b0d…",
-        "settings": { "paperSize": "A4", "colorMode": "BW", "copies": 1, "pages": "all", "selectedPageCount": 1, "printedPages": 1 }
       }
     ]
   }
 }
 ```
+
+`files` always has **exactly one** entry (kept as an array so the shape is stable).
 
 ### 4.2 `POST /api/kiosk/orders/{orderId}/claim`
 
@@ -104,47 +113,50 @@ Call when the customer confirms. Atomically moves `PAID → PROCESSING` and reco
 Request: `{ "code": "PN482917" }` (must match the order).
 Response `200`: same shape as lookup, with `"status": "PROCESSING"`.
 
-### 4.3 `GET /api/kiosk/orders/{orderId}/files/{fileId}`
+### 4.3 `GET /api/kiosk/orders/{orderId}/files/{fileId}?variant=print|original`
 
-Downloads the **original** file bytes. Only works while the order is `PROCESSING` **and** was claimed by this kiosk.
+- `variant=print` (default): the **print-ready PDF**. Print this.
+- `variant=original`: the customer's untouched upload (for reference or re-processing only).
 
-Response headers:
-- `Content-Type`: `application/pdf`, `image/jpeg` or `image/png`
-- `Content-Disposition`: attachment with the original file name
-- `X-File-Sha256`: hex SHA-256 of the file (optional integrity check)
+Only works while the order is `PROCESSING` **and** was claimed by this kiosk.
+
+**Delivery:**
+- Files up to 4 MB come straight back (`200`, body = file).
+- Larger files answer **`302 Found`** with a `Location` header pointing to a **5-minute signed link** on Vercel Blob storage. Vercel Functions can't return more than 4.5 MB. **Your HTTP client must follow redirects** (`curl -L`, Python `requests` does by default). Don't store the link; request a fresh one if it expires.
+
+Response headers: `X-File-Variant` (`print`/`original`), `X-File-Sha256` (also in the lookup response as `print.sha256` / `original.sha256` for checking after a redirect), and for direct responses `Content-Type` and `Content-Disposition`.
 
 ### 4.4 `POST /api/kiosk/orders/{orderId}/complete`
 
-Call after all files printed. `PROCESSING → COMPLETED`. Calling it again is harmless (returns the same result).
+Call after printing finished. `PROCESSING → COMPLETED`. Calling it again is harmless.
 
-Response `200`:
-```json
-{ "order": { "orderId": "8a3f…", "status": "COMPLETED", "completedAt": "2026-11-05T10:01:02.000Z" } }
-```
+Response `200`: `{ "order": { "orderId": "8a3f…", "status": "COMPLETED", "completedAt": "2026-11-05T10:01:02.000Z" } }`
 
 ### 4.5 `POST /api/kiosk/orders/{orderId}/fail`
 
-Request:
-```json
-{ "reason": "Paper jam on tray 1", "retryable": true }
-```
+Request: `{ "reason": "Paper jam on tray 1", "retryable": true }`
 - `retryable: true` → order returns to `PAID`; the same code works again.
 - `retryable: false` → order becomes `FAILED`; the customer is told to contact support.
 
 Response `200`: `{ "order": { "orderId": "…", "status": "PAID" } }`
 
-## 5. Applying print settings
+## 5. How to print an order
 
-| Field | Meaning |
+1. Download `files[0].downloadPath` (the print file). It is always a **PDF**.
+2. Print **pages `print.pages`** of that PDF. This is normally `"all"`; only if the server couldn't extract the pages does it contain a range like `"1-3,5"`.
+3. Print `settings.copies` copies, **collated**, **single-sided**, on **A4**.
+4. `settings.colorMode`: `BW` → grayscale/black only; `COLOR` → full color.
+5. **Print at 100 % / "actual size"**. Do **not** use "fit to page" or "shrink to fit". The PDF is already exactly A4 with a 5 mm margin built in.
+
+What the print file contains:
+
+| Upload | Print file |
 |---|---|
-| `paperSize` | Always `A4` for now. |
-| `colorMode` | `BW` = print in grayscale/black only. `COLOR` = full color. |
-| `copies` | Number of copies of the selected pages (1–50). Print collated (1,2,3, 1,2,3). |
-| `pages` | `all` or a normalized range list like `1-3,5,8-10` (sorted, no duplicates, 1-based). |
-| `selectedPageCount` | Number of pages in `pages`. |
-| `printedPages` | `selectedPageCount × copies`: the number of A4 sheets to print (single-sided). |
+| JPG / PNG | 1-page A4 PDF with the customer's crop, 90° rotation, size and position applied (full original resolution). |
+| PDF, all pages | The original PDF, unchanged. |
+| PDF, some pages | A new PDF with only the selected pages, in order, page content unchanged. |
 
-Images (JPG/PNG) are always one page. Scale them to fit A4 and keep the aspect ratio.
+`settings.pages` always describes the selection relative to the **original** document (e.g. `"1-2,4"`), for display on the kiosk screen.
 
 ## 6. Errors
 
@@ -163,6 +175,7 @@ All errors look like:
 | 409 | `ALREADY_COMPLETED` | Already printed | "This order has already been printed." |
 | 409 | `ORDER_FAILED` | Previously failed permanently | "Please contact support." |
 | 409 | `NOT_CLAIMED` | Download/complete/fail without claiming first, or claimed by another kiosk | (kiosk logic error) |
+| 404 | `FILE_NOT_FOUND` | File missing or already cleaned up | "Please contact support." |
 | 410 | `EXPIRED` | Paid but not collected within 7 days | "This code has expired." |
 | 410 | `CANCELLED` | Customer cancelled | "This order was cancelled." |
 | 429 | `RATE_LIMITED` | 5 wrong codes from this kiosk within 10 minutes | "Too many attempts. Please wait a few minutes." (`retryAfterSeconds` included) |
@@ -171,7 +184,7 @@ All errors look like:
 ## 7. Try it with curl
 
 ```bash
-export BASE=https://<printnow-domain>
+export BASE=https://printnow-web.vercel.app
 export KEY=pnk_xxx
 export KIOSK=kiosk-01
 ```
@@ -185,7 +198,7 @@ curl -s -X POST "$BASE/api/kiosk/orders/<orderId>/claim" -H "Authorization: Bear
 ```
 
 ```bash
-curl -s -o file.pdf "$BASE/api/kiosk/orders/<orderId>/files/<fileId>" -H "Authorization: Bearer $KEY" -H "X-Kiosk-Id: $KIOSK"
+curl -s -L -o print.pdf "$BASE/api/kiosk/orders/<orderId>/files/<fileId>?variant=print" -H "Authorization: Bearer $KEY" -H "X-Kiosk-Id: $KIOSK"
 ```
 
 ```bash
@@ -198,5 +211,5 @@ Health check (no auth): `GET /api/health` → `{"status":"ok","database":"ok",..
 
 - The kiosk must have internet access; there is no offline mode.
 - An order stuck in `PROCESSING` (kiosk crashed mid-print) is **not** automatically reset, to avoid printing twice. Either the same kiosk calls `/fail` with `retryable: true` after restarting, or staff reset it in the database.
-- Files are deleted ~24 h after completion, so download and print right after claiming.
+- Files (original and print) are deleted ~24 h after completion, so download and print right after claiming.
 - Test end-to-end against the production URL with a test order. Preview deployments are protected by Vercel login.

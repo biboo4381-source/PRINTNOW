@@ -4,7 +4,7 @@ import QRCode from "qrcode";
 import { Clock, TriangleAlert } from "lucide-react";
 import { OrderNotFound } from "@/components/OrderNotFound";
 import { OrderSummary } from "@/components/OrderSummary";
-import { Stepper } from "@/components/Stepper";
+import { STEP, Stepper } from "@/components/Stepper";
 import { ButtonLink, Card, Container, PageTitle } from "@/components/ui";
 import { loadCustomerOrder } from "@/lib/order-page";
 import { formatRupiah } from "@/lib/pricing";
@@ -44,7 +44,7 @@ export default async function PayPage({ params }: { params: Promise<{ orderId: s
 
   return (
     <Container className="max-w-3xl py-6 sm:py-10">
-      <Stepper current={2} />
+      <Stepper current={STEP.pay} />
 
       <div
         role="note"
