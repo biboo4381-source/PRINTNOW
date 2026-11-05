@@ -50,7 +50,6 @@ export async function inspectPdf(bytes: Uint8Array): Promise<PdfInspection> {
 /** Keeps a display-safe file name: no paths, no control chars, max 120 chars. */
 export function sanitizeFileName(name: string): string {
   const base = name.split(/[\\/]/).pop() ?? "document";
-  // eslint-disable-next-line no-control-regex
   const cleaned = base.replace(/[\u0000-\u001f\u007f<>:"|?*]/g, "").trim();
   if (!cleaned) return "document";
   if (cleaned.length <= 120) return cleaned;

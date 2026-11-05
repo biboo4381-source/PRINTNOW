@@ -1,26 +1,73 @@
 @import "tailwindcss";
 
+/* PRINTNOW brand tokens */
+@theme {
+  --color-brand: #0877f9;
+  --color-brand-600: #0666d6;
+  --color-brand-700: #0553ad;
+  --color-brand-50: #e8f2ff;
+  --color-brand-100: #d0e5ff;
+  --color-navy: #0c2c55;
+  --color-navy-700: #163c6e;
+  --color-ink-muted: #4a5d78;
+  --color-surface: #f2f6fa;
+  --color-line: #dce5ef;
+  --color-green: #159447;
+  --color-green-50: #e7f6ed;
+  --color-danger: #c62f2f;
+  --color-danger-50: #fdecec;
+  --color-warning: #a35c00;
+  --color-warning-50: #fff4e0;
+
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", var(--font-sans);
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, monospace;
+
+  --radius-card: 1.25rem;
+  --shadow-card: 0 1px 2px rgb(12 44 85 / 0.04), 0 8px 24px rgb(12 44 85 / 0.06);
+  --shadow-lift: 0 2px 4px rgb(12 44 85 / 0.06), 0 16px 40px rgb(12 44 85 / 0.12);
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-surface);
+  color: var(--color-navy);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

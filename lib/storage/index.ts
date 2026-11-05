@@ -5,7 +5,8 @@ import path from "node:path";
  * File storage.
  * - "blob": Vercel Blob (private store). Used whenever BLOB_READ_WRITE_TOKEN is set.
  *   Browsers upload directly with a short-lived client token (see /api/uploads/token).
- * - "local": files on disk under .data/uploads. Local development and tests only.
+ * - "local": files on disk under .data/uploads. Local development and tests only
+ *   (filesystem calls are marked turbopackIgnore so the deploy bundle stays small).
  *
  * Storage keys/URLs are never sent to customers; the kiosk downloads through our API.
  */
@@ -15,15 +16,13 @@ export function storageMode(): StorageMode {
   return process.env.BLOB_READ_WRITE_TOKEN ? "blob" : "local";
 }
 
-export const UPLOAD_PREFIX = "uploads/";
-
 function localRoot() {
-  return process.env.LOCAL_STORAGE_DIR || path.join(process.cwd(), ".data", "uploads");
+  return process.env.LOCAL_STORAGE_DIR || path.join(/*turbopackIgnore: true*/ process.cwd(), ".data", "uploads");
 }
 
 function localPath(key: string) {
-  const root = path.resolve(localRoot());
-  const full = path.resolve(root, key);
+  const root = path.resolve(/*turbopackIgnore: true*/ localRoot());
+  const full = path.resolve(/*turbopackIgnore: true*/ root, key);
   if (!full.startsWith(root + path.sep)) throw new Error("Invalid storage key");
   return full;
 }
@@ -37,7 +36,7 @@ export async function readObject(key: string): Promise<Uint8Array | null> {
     return new Uint8Array(buf);
   }
   try {
-    return new Uint8Array(await readFile(localPath(key)));
+    return new Uint8Array(await readFile(/*turbopackIgnore: true*/ localPath(key)));
   } catch {
     return null;
   }
@@ -54,7 +53,7 @@ export async function objectSize(key: string): Promise<number | null> {
     }
   }
   try {
-    return (await stat(localPath(key))).size;
+    return (await stat(/*turbopackIgnore: true*/ localPath(key))).size;
   } catch {
     return null;
   }
@@ -66,14 +65,14 @@ export async function deleteObject(key: string): Promise<void> {
     await del(key);
     return;
   }
-  await rm(localPath(key), { force: true });
+  await rm(/*turbopackIgnore: true*/ localPath(key), { force: true });
 }
 
 /** Local mode only: write an uploaded file to disk. */
 export async function writeLocalObject(key: string, bytes: Uint8Array): Promise<void> {
   const full = localPath(key);
-  await mkdir(path.dirname(full), { recursive: true });
-  await writeFile(full, bytes);
+  await mkdir(/*turbopackIgnore: true*/ path.dirname(full), { recursive: true });
+  await writeFile(/*turbopackIgnore: true*/ full, bytes);
 }
 
 /** Accepts only keys we issued: uploads/<uuid>/<name>. */
