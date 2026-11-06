@@ -138,7 +138,7 @@ test.describe("kiosk", () => {
     await expect(details).toContainText("Copies2");
     await expect(details).toContainText("Selected pages1-3");
     await expect(details).toContainText("Total sheets to print6");
-    await expect(details).toContainText(/Rp\s?9\.000/);
+    await expect(details).toContainText(/Rp\s?15\.000/);
     await expectNoScroll(page);
     expect(await kioskStatus(request, code)).toBe("PAID"); // looking doesn't change anything
 

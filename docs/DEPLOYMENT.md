@@ -31,7 +31,7 @@ _Status: done on 5 Nov 2026 (Neon store connected to Production and Preview)._ S
 
 1. Open **Vercel → printnow-web → Storage → Create Database → Neon (Serverless Postgres)**.
 2. Choose the free plan and region **Singapore (aws-ap-southeast-1)**, then **Connect** it to `printnow-web` for Production and Preview.
-3. Redeploy (Deployments → ⋯ → Redeploy). The build runs the migrations and seeds the placeholder prices.
+3. Redeploy (Deployments → ⋯ → Redeploy). The build runs the migrations and sets the prices (B&W Rp 1.000, color Rp 2.500 per page).
 4. Check `https://<production-url>/api/health` → `{"status":"ok","database":"ok","databaseMode":"postgres","storage":"blob"}`.
 
 ## Common tasks

@@ -3,8 +3,8 @@ import { getDb } from "../db";
 import { pricingConfig } from "../db/schema";
 import type { PriceTable } from "../pricing";
 
-/** Fallback if the pricing table is somehow empty (it is seeded by migration 0001). */
-export const DEFAULT_PRICES: PriceTable = { bwPricePerPage: 500, colorPricePerPage: 1500, currency: "IDR" };
+/** Fallback if the pricing table is somehow empty (prices are set by migrations 0001 and 0003). */
+export const DEFAULT_PRICES: PriceTable = { bwPricePerPage: 1000, colorPricePerPage: 2500, currency: "IDR" };
 
 export async function getActivePrices(): Promise<PriceTable> {
   const db = await getDb();

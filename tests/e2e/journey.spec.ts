@@ -201,21 +201,21 @@ test("PDF: preview, page selection, settings, price, payment, kiosk gets only th
   // Step 3: settings + summary + live price
   const total = page.getByTestId("order-total");
   await expect(page.getByTestId("order-summary")).toContainText("1-2,4 (3 of 5)");
-  await expect(total).toHaveText(rupiah("1.500")); // 3 × 500
+  await expect(total).toHaveText(rupiah("3.000")); // 3 × 1000
   await page.getByText("Color", { exact: true }).click();
-  await expect(total).toHaveText(rupiah("4.500")); // 3 × 1500
+  await expect(total).toHaveText(rupiah("7.500")); // 3 × 2500
   await page.getByRole("button", { name: "More copies" }).click();
-  await expect(total).toHaveText(rupiah("9.000")); // 6 × 1500
+  await expect(total).toHaveText(rupiah("15.000")); // 6 × 2500
   await expect(page.getByTestId("order-summary")).toContainText("3 × 2 = 6");
   await expectNoHorizontalScroll(page);
 
   const { orderId, code } = await payAndGetCode(page);
-  await expect(page.getByTestId("summary-total")).toHaveText(rupiah("9.000"));
+  await expect(page.getByTestId("summary-total")).toHaveText(rupiah("15.000"));
   await expectNoHorizontalScroll(page);
 
   // Kiosk: settings are right; the print file contains exactly the 3 chosen pages; original keeps 5.
   const order = await kioskClaim(request, code);
-  expect(order).toMatchObject({ orderId, totalPrice: 9000, totalPrintedPages: 6 });
+  expect(order).toMatchObject({ orderId, totalPrice: 15000, totalPrintedPages: 6 });
   expect(order.files).toHaveLength(1);
   const f = order.files[0];
   expect(f).toMatchObject({
@@ -282,7 +282,7 @@ test("image: rotate, crop, fill — the kiosk's print file matches the preview",
   await page.getByRole("button", { name: "Continue to settings" }).click();
   await expect(page.getByTestId("a4-thumb")).toBeVisible();
   await expect(page.getByText("Image adjusted for A4")).toBeVisible();
-  await expect(page.getByTestId("order-total")).toHaveText(rupiah("500"));
+  await expect(page.getByTestId("order-total")).toHaveText(rupiah("1.000"));
 
   const { code } = await payAndGetCode(page);
   await expect(page.getByText(/Image adjusted/)).toBeVisible();

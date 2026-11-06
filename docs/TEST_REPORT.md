@@ -53,7 +53,7 @@ npm run build && npm run test:e2e
 | **Image preview and A4 output** | E2E: A4 preview shows the default Fit layout (white above/below a landscape photo); settings page shows an A4 thumbnail; integration: print file is exactly one A4 page (595.28 × 841.89 pt). | ✅ |
 | **PDF preview and page selection** | E2E: thumbnails for every page render; tapping pages updates the range (`1-2,4`); typed ranges update the selected thumbnails; invalid page blocks Continue; enlarged page preview opens/closes. | ✅ |
 | **Printing settings** | E2E: B&W/Color and copies on the Settings step with the order summary; summary shows `1-2,4 (3 of 5)` and `3 × 2 = 6`. | ✅ |
-| **Price calculation** | E2E: Rp 1.500 → 4.500 → 9.000 as settings change; server recalculates (integration). Images always count as 1 page. | ✅ |
+| **Price calculation** | E2E: Rp 3.000 → 7.500 → 15.000 as settings change (B&W Rp 1.000, color Rp 2.500 per page); server recalculates (integration). Images always count as 1 page. | ✅ |
 | **Preservation of adjusted output for the kiosk** | **E2E pixel comparison:** after rotate + crop + fill + move, 35 sample points of the browser preview are compared with the server's print PDF (downloaded through the kiosk API and rendered with pdf.js). They match (≤1 edge mismatch allowed, 0 observed). The original upload is downloaded too and is byte-identical to what was uploaded. PDF page selection → kiosk print file has exactly 3 pages; original still has 5. | ✅ |
 
 ## Original required scenarios (brief §10)

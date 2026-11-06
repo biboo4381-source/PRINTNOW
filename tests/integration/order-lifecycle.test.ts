@@ -101,14 +101,14 @@ describe("one document per order", () => {
 });
 
 describe("configuration and pricing (scenarios 5–9)", () => {
-  it("uses the seeded placeholder prices", async () => {
-    expect(await getActivePrices()).toEqual({ bwPricePerPage: 500, colorPricePerPage: 1500, currency: "IDR" });
+  it("uses the team prices (B&W Rp 1.000, color Rp 2.500 per page)", async () => {
+    expect(await getActivePrices()).toEqual({ bwPricePerPage: 1000, colorPricePerPage: 2500, currency: "IDR" });
   });
 
   it("5/7/8/9. B&W, copies and page selection are stored and priced on the server", async () => {
-    const o = await pdfOrder(10, { copies: 2, pageSelection: "1-3, 5" }); // 4 pages × 2 × 500
+    const o = await pdfOrder(10, { copies: 2, pageSelection: "1-3, 5" }); // 4 pages × 2 × 1000
     const view = await getOrderForCustomer(o.orderId, o.accessToken);
-    expect(view).toMatchObject({ status: "PENDING_PAYMENT", totalPrice: 4000, totalPrintedPages: 8, collectionCode: null });
+    expect(view).toMatchObject({ status: "PENDING_PAYMENT", totalPrice: 8000, totalPrintedPages: 8, collectionCode: null });
     expect(view!.items).toHaveLength(1);
     expect(view!.items[0]).toMatchObject({ colorMode: "BW", copies: 2, pageSelection: "1-3,5", selectedPageCount: 4, paperSize: "A4", imageAdjustment: null });
   });
@@ -117,17 +117,17 @@ describe("configuration and pricing (scenarios 5–9)", () => {
     const img = await (await upload(PNG_1PX, "poster.png")).verify();
     const o = await createOrder({ fileId: img.id, colorMode: "COLOR", copies: 3, pageSelection: "1-9" }); // pages ignored for images
     const view = await getOrderForCustomer(o.orderId, o.accessToken);
-    expect(view).toMatchObject({ totalPrice: 4500, totalPrintedPages: 3 });
+    expect(view).toMatchObject({ totalPrice: 7500, totalPrintedPages: 3 });
     expect(view!.items[0]).toMatchObject({ pageSelection: "all", selectedPageCount: 1, imageAdjusted: false });
   });
 
   it("uses a new price row for new orders without changing old ones", async () => {
-    const before = await paidOrder(2); // 2 × 500 = 1000
+    const before = await paidOrder(2); // 2 × 1000 = 2000
     const db = await getDb();
     await db.insert(pricingConfig).values({ bwPricePerPage: 700, colorPricePerPage: 2000, note: "test" });
     const after = await pdfOrder(2);
     expect((await getOrderForCustomer(after.orderId, after.accessToken))!.totalPrice).toBe(1400);
-    expect((await getOrderForCustomer(before.orderId, before.accessToken))!.totalPrice).toBe(1000);
+    expect((await getOrderForCustomer(before.orderId, before.accessToken))!.totalPrice).toBe(2000);
     await db.delete(pricingConfig).where(eq(pricingConfig.note, "test"));
   });
 
@@ -266,7 +266,7 @@ describe("kiosk flow (scenarios 12–15)", () => {
     const { collectionCode } = await payOrder(orderId, accessToken);
 
     const found = await lookupByCode(KIOSK, collectionCode.toLowerCase().replace("pn", "pn ")); // forgiving input
-    expect(found).toMatchObject({ orderId, status: "PAID", totalPrice: 3000, totalPrintedPages: 2 });
+    expect(found).toMatchObject({ orderId, status: "PAID", totalPrice: 5000, totalPrintedPages: 2 });
     expect(found.files).toHaveLength(1);
     const f = found.files[0];
     expect(f).toMatchObject({

@@ -271,8 +271,8 @@ The brief's five collections are kept, plus one small `pricing_config` table (ne
 | Field | Type | Notes |
 |---|---|---|
 | id | serial PK | |
-| bw_price_per_page | integer | placeholder **Rp 500** |
-| color_price_per_page | integer | placeholder **Rp 1.500** |
+| bw_price_per_page | integer | **Rp 1.000** (team pricing, migration 0003; was placeholder Rp 500) |
+| color_price_per_page | integer | **Rp 2.500** (team pricing, migration 0003; was placeholder Rp 1.500) |
 | currency | text | `IDR` |
 | active_from | timestamptz | newest active row wins; old rows kept as history |
 
@@ -301,7 +301,7 @@ The brief's five collections are kept, plus one small `pricing_config` table (ne
   `subtotal = selected_pages × copies × price_per_page(color_mode)`
   `order_total = Σ subtotal`
 - **Page range parser:** accepts `1-3, 5, 8-10`. It rejects pages outside `1..page_count`, reversed ranges, and empty input. Duplicates are merged. The result is stored normalized.
-- **Assumptions to confirm:** single-sided printing only; one A4 sheet per page; images are scaled to fit A4; no minimum charge. Placeholder prices are Rp 500 (B&W) and Rp 1.500 (color) per page, to be replaced when the team finalizes pricing.
+- **Assumptions to confirm:** single-sided printing only; one A4 sheet per page; images are scaled to fit A4; no minimum charge. Prices are Rp 1.000 (B&W) and Rp 2.500 (color) per page (team pricing; the first placeholder was Rp 500 / Rp 1.500).
 
 ---
 
@@ -467,6 +467,6 @@ Errors are shown in plain language with a next step ("Try again", "Choose anothe
 3. **Collection code format:** `PN` + 6 digits (default) vs. alphanumeric. Depends on the kiosk keypad.
 4. **Limits:** 20 MB/file, 5 files/order, 1–50 copies. OK?
 5. **Expiry:** unpaid orders 24 h, paid uncollected orders 7 days. OK?
-6. **Placeholder prices:** Rp 500 B&W / Rp 1.500 color per page until the final pricing.
+6. **Prices:** Rp 1.000 B&W / Rp 2.500 color per page (decided by the team; replaces the Rp 500 / Rp 1.500 placeholder).
 7. **Contact details** for the footer and the support text.
 8. **Jonathan's answers** to the 5 kiosk questions in §12.
