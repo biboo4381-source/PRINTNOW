@@ -30,8 +30,11 @@ export default defineConfig({
     { name: "desktop", testMatch: /journey\.spec\.ts/, use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 800 }, launchOptions } },
     { name: "mobile", testMatch: /journey\.spec\.ts/, use: { ...devices["Pixel 7"], launchOptions } },
     { name: "small-phone", testMatch: /journey\.spec\.ts/, use: { ...devices["Desktop Chrome"], viewport: { width: 360, height: 640 }, isMobile: true, hasTouch: true, launchOptions } },
-    // 13-inch iPad in landscape (CSS pixels), touch input: the kiosk terminal.
-    { name: "kiosk-ipad", testMatch: /kiosk\.spec\.ts/, use: { ...devices["Desktop Chrome"], viewport: { width: 1366, height: 1024 }, isMobile: true, hasTouch: true, launchOptions } },
+    // The kiosk runs on any screen: laptops (mouse + keyboard), touchscreen monitors and tablets.
+    { name: "kiosk-laptop", testMatch: /kiosk\.spec\.ts/, use: { ...devices["Desktop Chrome"], viewport: { width: 1366, height: 768 }, launchOptions } },
+    { name: "kiosk-laptop-720p", testMatch: /kiosk\.spec\.ts/, use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 720 }, launchOptions } },
+    { name: "kiosk-touch-monitor", testMatch: /kiosk\.spec\.ts/, use: { ...devices["Desktop Chrome"], viewport: { width: 1920, height: 1080 }, isMobile: true, hasTouch: true, launchOptions } },
+    { name: "kiosk-tablet", testMatch: /kiosk\.spec\.ts/, use: { ...devices["Desktop Chrome"], viewport: { width: 1366, height: 1024 }, isMobile: true, hasTouch: true, launchOptions } },
   ],
   webServer: {
     command: `npx next start -p ${PORT}`,

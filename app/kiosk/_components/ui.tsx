@@ -1,11 +1,12 @@
 "use client";
 
 import clsx from "clsx";
+import { twMerge } from "tailwind-merge";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { MonitorCog } from "lucide-react";
 import { Logo } from "@/components/Logo";
 
-/** Big touch button for the kiosk (≥ 80 px tall). */
+/** Big kiosk button. Size follows the screen (see .kiosk tokens in globals.css). */
 export function KButton({
   tone = "primary",
   className,
@@ -14,14 +15,14 @@ export function KButton({
   return (
     <button
       type="button"
-      className={clsx(
-        "inline-flex min-h-20 items-center justify-center gap-3 rounded-3xl px-8 text-2xl font-bold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40",
+      className={twMerge(clsx(
+        "inline-flex min-h-[var(--k-btn-h)] items-center justify-center gap-[0.5em] rounded-[var(--k-radius)] px-[1.4em] text-[length:var(--k-btn)] font-bold transition hover:brightness-105 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 [&>svg]:size-[1.2em] [&>svg]:shrink-0",
         tone === "primary" && "bg-brand text-white shadow-[0_10px_24px_rgb(8_119_249/0.3)]",
         tone === "success" && "bg-green text-white shadow-[0_10px_24px_rgb(21_148_71/0.3)]",
         tone === "secondary" && "border-[3px] border-line bg-white text-navy",
         tone === "ghost" && "text-brand",
         className,
-      )}
+      ))}
       {...props}
     />
   );
@@ -37,7 +38,7 @@ function Clock() {
   if (!minute) return null;
   const d = new Date(minute * 60_000);
   return (
-    <span className="font-display text-2xl font-bold tabular-nums">
+    <span className="hidden font-display text-[length:var(--k-body)] font-bold tabular-nums sm:inline">
       {d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
     </span>
   );
@@ -52,26 +53,32 @@ export function KioskHeader({ onStaff, offline }: { onStaff: () => void; offline
   const cancel = () => {
     if (timer.current) clearTimeout(timer.current);
   };
+  // Laptops: Ctrl + Alt + K also opens the staff menu.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.ctrlKey && e.altKey && (e.code === "KeyK" || e.key.toLowerCase() === "k") && onStaff();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onStaff]);
   return (
-    <header className="flex h-24 shrink-0 items-center justify-between border-b border-line bg-white px-8">
+    <header className="flex h-[var(--k-header-h)] shrink-0 items-center justify-between gap-3 border-b border-line bg-white px-[var(--k-pad)]">
       <div
         onPointerDown={start}
         onPointerUp={cancel}
         onPointerLeave={cancel}
         onContextMenu={(e) => e.preventDefault()}
-        className="scale-125 origin-left"
+        className="origin-left sm:scale-110 lg:scale-125"
         data-testid="kiosk-logo"
       >
         <Logo />
       </div>
-      <div className="flex items-center gap-5">
+      <div className="flex items-center gap-[var(--k-gap)] text-[length:var(--k-small)]">
         {offline && (
-          <span className="rounded-full bg-danger-50 px-4 py-2 text-lg font-bold text-danger" role="status">
+          <span className="rounded-full bg-danger-50 px-[1em] py-[0.4em] font-bold text-danger" role="status">
             Offline · reconnecting…
           </span>
         )}
-        <span className="flex items-center gap-2 rounded-full bg-warning-50 px-4 py-2 text-lg font-bold text-warning" data-testid="simulation-badge">
-          <MonitorCog className="h-5 w-5" aria-hidden="true" /> Simulation mode · no printer
+        <span className="flex items-center gap-[0.4em] rounded-full bg-warning-50 px-[1em] py-[0.4em] font-bold text-warning" data-testid="simulation-badge">
+          <MonitorCog className="size-[1.2em]" aria-hidden="true" /> Simulation<span className="hidden md:inline"> mode · no printer</span>
         </span>
         <Clock />
       </div>
@@ -136,8 +143,8 @@ export function useWakeLock() {
 export function ScreenTitle({ title, subtitle, className }: { title: React.ReactNode; subtitle?: React.ReactNode; className?: string }) {
   return (
     <div className={className}>
-      <h1 className="text-5xl font-extrabold">{title}</h1>
-      {subtitle && <p className="mt-3 text-2xl text-ink-muted">{subtitle}</p>}
+      <h1 className="text-[length:var(--k-h1)] font-extrabold">{title}</h1>
+      {subtitle && <p className="mt-[0.4em] text-[length:var(--k-body)] text-ink-muted">{subtitle}</p>}
     </div>
   );
 }

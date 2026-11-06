@@ -99,6 +99,12 @@ test.describe("kiosk", () => {
     expect(await page.getByTestId("upload-qr").innerHTML()).toBe(first);
     await page.getByRole("button", { name: "Back to home" }).click();
     await expect(page.getByTestId("kiosk")).toHaveAttribute("data-screen", "home");
+
+    // Laptops: the staff menu also opens with Ctrl + Alt + K.
+    await page.keyboard.press("Control+Alt+KeyK");
+    await expect(page.getByRole("dialog", { name: "Staff menu" })).toBeVisible();
+    await page.getByRole("button", { name: "Close staff menu" }).click();
+    await expect(page.getByRole("dialog", { name: "Staff menu" })).toBeHidden();
   });
 
   test("full journey: order on a phone → code at the kiosk → confirm → simulated print → completed", async ({ page, browser, request }) => {
@@ -213,10 +219,10 @@ test.describe("kiosk", () => {
     expect(await kioskStatus(request, code)).toBe("ALREADY_COMPLETED");
   });
 
-  test("two kiosks can't print the same order", async ({ page, browser, baseURL }) => {
+  test("two kiosks can't print the same order", async ({ page, browser, baseURL, viewport, hasTouch, isMobile }) => {
     const { code } = await paidOrderViaApi(baseURL!, { name: "long.pdf", type: "application/pdf", bytes: Buffer.from(await makePdf(4)) }, { copies: 3 });
     await pair(page);
-    const second = await (browser as Browser).newContext({ viewport: { width: 1366, height: 1024 }, hasTouch: true, isMobile: true });
+    const second = await (browser as Browser).newContext({ viewport, hasTouch, isMobile });
     const k2 = await second.newPage();
     await pair(k2);
 

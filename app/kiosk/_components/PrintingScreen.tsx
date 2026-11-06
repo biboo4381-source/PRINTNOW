@@ -119,24 +119,24 @@ export function PrintingScreen({
   const stageIndex = STAGES.findIndex((s) => s.id === stage);
 
   return (
-    <div className="flex flex-1 flex-col gap-6 px-12 py-8" data-testid="kiosk-printing" data-stage={stage}>
-      <div className="flex items-center gap-3 rounded-2xl border-2 border-warning/40 bg-warning-50 px-6 py-4 text-2xl font-bold text-warning" role="note">
-        <MonitorCog className="h-8 w-8 shrink-0" aria-hidden="true" /> SIMULATED PRINTING · prototype without a printer, no paper is printed
+    <div className="flex flex-1 flex-col gap-[var(--k-gap)] p-[var(--k-pad)]" data-testid="kiosk-printing" data-stage={stage}>
+      <div className="flex items-center gap-[0.5em] rounded-[var(--k-radius)] border-2 border-warning/40 bg-warning-50 px-[1em] py-[0.6em] text-[length:var(--k-body)] font-bold text-warning" role="note">
+        <MonitorCog className="size-[1.3em] shrink-0" aria-hidden="true" /> SIMULATED PRINTING · prototype without a printer, no paper is printed
       </div>
-      <div className="grid flex-1 grid-cols-1 gap-8 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <div className="flex items-center justify-center rounded-[2rem] bg-[#dfe7f1] p-6">
+      <div className="grid flex-1 grid-cols-1 gap-[var(--k-gap)] md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <div className="flex items-center justify-center rounded-[var(--k-radius)] bg-[#dfe7f1] p-[calc(var(--k-pad)*0.6)]">
           <PagePreview doc={doc} page={progress?.page ?? job?.pages[0] ?? 1} colorMode={job?.colorMode ?? "COLOR"} />
         </div>
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-[var(--k-gap)]">
           <div>
-            <h1 className="text-5xl font-extrabold">{stage === "finish" ? "Finishing…" : "Printing your document"}</h1>
-            <p className="mt-2 text-2xl text-ink-muted [overflow-wrap:anywhere]">{order.files[0]?.name}</p>
+            <h1 className="text-[length:var(--k-h1)] font-extrabold">{stage === "finish" ? "Finishing…" : "Printing your document"}</h1>
+            <p className="mt-[0.3em] text-[length:var(--k-body)] text-ink-muted [overflow-wrap:anywhere]">{order.files[0]?.name}</p>
           </div>
           <div>
-            <div className="h-6 overflow-hidden rounded-full bg-white shadow-inner" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+            <div className="h-[clamp(0.9rem,2vmin,1.5rem)] overflow-hidden rounded-full bg-white shadow-inner" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
               <div className="h-full rounded-full bg-brand transition-[width] duration-300" style={{ width: `${pct}%` }} />
             </div>
-            <p className="mt-3 text-3xl font-bold tabular-nums" data-testid="print-progress">
+            <p className="mt-[0.5em] text-[length:calc(var(--k-body)*1.15)] font-bold tabular-nums" data-testid="print-progress">
               {progress
                 ? `Sheet ${progress.sheet} of ${progress.totalSheets} · page ${job?.originalPages[job.pages.indexOf(progress.page)] ?? progress.page} · copy ${progress.copy} of ${progress.copies}`
                 : job
@@ -144,33 +144,33 @@ export function PrintingScreen({
                   : "Preparing…"}
             </p>
             {job && (
-              <p className="mt-1 text-xl text-ink-muted">
+              <p className="mt-[0.2em] text-[length:var(--k-small)] text-ink-muted">
                 A4 · {job.colorMode === "COLOR" ? "Color" : "Black & White"} · {job.copies} cop{job.copies === 1 ? "y" : "ies"}
               </p>
             )}
           </div>
-          <ol className="space-y-3">
+          <ol className="space-y-[calc(var(--k-gap)*0.5)] text-[length:var(--k-body)]">
             {STAGES.map((s, i) => {
               const done = i < stageIndex;
               const active = i === stageIndex;
               return (
-                <li key={s.id} className={clsx("flex items-center gap-4 text-2xl", !done && !active && "text-ink-muted/60")}>
+                <li key={s.id} className={clsx("flex items-center gap-[0.6em]", !done && !active && "text-ink-muted/60")}>
                   <span
                     className={clsx(
-                      "flex h-11 w-11 items-center justify-center rounded-full",
+                      "flex size-[1.6em] shrink-0 items-center justify-center rounded-full [&>svg]:size-[60%]",
                       done && "bg-green text-white",
                       active && "bg-brand text-white",
                       !done && !active && "bg-white ring-2 ring-line",
                     )}
                   >
-                    {done ? <Check className="h-6 w-6" aria-hidden="true" /> : active ? <LoaderCircle className="h-6 w-6 animate-spin" aria-hidden="true" /> : null}
+                    {done ? <Check aria-hidden="true" /> : active ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : null}
                   </span>
                   <span className={clsx(active && "font-bold")}>{s.label}</span>
                 </li>
               );
             })}
           </ol>
-          <p className="mt-auto text-xl text-ink-muted">Please wait. Don’t leave the kiosk until printing is complete.</p>
+          <p className="mt-auto text-[length:var(--k-small)] text-ink-muted">Please wait. Don’t leave the kiosk until printing is complete.</p>
         </div>
       </div>
     </div>
@@ -209,15 +209,15 @@ function PagePreview({ doc, page, colorMode }: { doc: PdfDoc | null; page: numbe
   }, [doc, page]);
 
   return (
-    <div className="relative flex h-full max-h-[34rem] w-full items-center justify-center">
+    <div className="relative flex h-full max-h-[min(34rem,50vh)] w-full items-center justify-center">
       <canvas
         ref={ref}
         data-testid="print-preview"
         data-page={rendered}
-        className={clsx("h-full max-h-[34rem] w-auto rounded bg-white shadow-[0_8px_28px_rgb(12_44_85/0.2)]", colorMode === "BW" && "grayscale", !rendered && "hidden")}
+        className={clsx("h-full max-h-[min(34rem,50vh)] w-auto max-w-full rounded bg-white shadow-[0_8px_28px_rgb(12_44_85/0.2)]", colorMode === "BW" && "grayscale", !rendered && "hidden")}
       />
       {!rendered && (
-        <div className="flex aspect-[1/1.414] h-full max-h-[34rem] items-center justify-center rounded bg-white shadow">
+        <div className="flex aspect-[1/1.414] h-full max-h-[min(34rem,50vh)] items-center justify-center rounded bg-white shadow">
           <LoaderCircle className="h-12 w-12 animate-spin text-line" aria-hidden="true" />
         </div>
       )}

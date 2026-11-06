@@ -102,9 +102,9 @@ export function KioskApp({ kioskId, uploadUrl, qrSvg, idleSeconds }: { kioskId: 
       break;
     case "checking":
       body = (
-        <div className="flex flex-1 flex-col items-center justify-center gap-6" role="status">
-          <LoaderCircle className="h-24 w-24 animate-spin text-brand" aria-hidden="true" />
-          <p className="text-4xl font-bold">Checking your code…</p>
+        <div className="flex flex-1 flex-col items-center justify-center gap-[var(--k-gap)]" role="status">
+          <LoaderCircle className="size-[var(--k-icon-box)] animate-spin text-brand" aria-hidden="true" />
+          <p className="text-[length:var(--k-h1)] font-bold">Checking your code…</p>
         </div>
       );
       break;
@@ -145,36 +145,36 @@ export function KioskApp({ kioskId, uploadUrl, qrSvg, idleSeconds }: { kioskId: 
     <div className="flex min-h-dvh flex-col" data-testid="kiosk" data-screen={screen.name}>
       <KioskHeader onStaff={() => setStaffOpen(true)} offline={offline} />
       <main className="flex flex-1 flex-col">{body}</main>
-      <footer className="flex h-14 shrink-0 items-center justify-between border-t border-line bg-white px-8 text-lg text-ink-muted">
+      <footer className="flex min-h-[clamp(2.5rem,5.5vmin,3.5rem)] shrink-0 items-center justify-between gap-4 border-t border-line bg-white px-[var(--k-pad)] text-[length:var(--k-small)] text-ink-muted">
         <span>Need help? Please ask PRINTNOW staff.</span>
         {idleLeft !== null ? (
           <span className="font-bold text-warning" role="status">
             Returning to home in {idleLeft}s. Touch the screen to stay.
           </span>
         ) : (
-          <span>Kiosk {kioskId}</span>
+          <span className="hidden sm:inline">Kiosk {kioskId}</span>
         )}
       </footer>
 
       {staffOpen && (
         <div role="dialog" aria-modal="true" aria-label="Staff menu" className="fixed inset-0 z-50 flex items-center justify-center bg-navy/60 p-6">
-          <div className="w-full max-w-lg rounded-[2rem] bg-white p-8 shadow-[var(--shadow-lift)]">
+          <div className="w-full max-w-lg rounded-[var(--k-radius)] bg-white p-[var(--k-pad)] shadow-[var(--shadow-lift)]">
             <div className="flex items-center justify-between">
-              <h2 className="flex items-center gap-3 text-3xl font-extrabold">
-                <Wrench className="h-8 w-8 text-brand" aria-hidden="true" /> Staff menu
+              <h2 className="flex items-center gap-3 text-[length:var(--k-h1)] font-extrabold">
+                <Wrench className="size-[0.9em] text-brand" aria-hidden="true" /> Staff menu
               </h2>
               <button type="button" onClick={() => setStaffOpen(false)} className="flex h-14 w-14 items-center justify-center rounded-2xl hover:bg-surface" aria-label="Close staff menu">
                 <X className="h-8 w-8" aria-hidden="true" />
               </button>
             </div>
-            <p className="mt-2 text-xl text-ink-muted">Kiosk {kioskId} · simulated printer</p>
-            <label className="mt-6 flex cursor-pointer items-center justify-between gap-4 rounded-2xl bg-surface p-5 text-xl font-semibold">
+            <p className="mt-2 text-[length:var(--k-small)] text-ink-muted">Kiosk {kioskId} · simulated printer · shortcut Ctrl + Alt + K</p>
+            <label className="mt-6 flex cursor-pointer items-center justify-between gap-4 rounded-2xl bg-surface p-5 text-[length:var(--k-body)] font-semibold">
               Simulate a paper jam on the next print
               <input type="checkbox" className="h-8 w-8 accent-[var(--color-brand)]" checked={simulateJam} onChange={(e) => setSimulateJam(e.target.checked)} />
             </label>
             <div className="mt-6 grid grid-cols-2 gap-4">
-              <KButton tone="secondary" className="min-h-16 text-xl" onClick={() => window.location.reload()}>Reload kiosk</KButton>
-              <KButton tone="secondary" className="min-h-16 text-xl" onClick={() => router.push("/kiosk/setup")}>Kiosk setup</KButton>
+              <KButton tone="secondary" className="text-[length:var(--k-small)]" onClick={() => window.location.reload()}>Reload kiosk</KButton>
+              <KButton tone="secondary" className="text-[length:var(--k-small)]" onClick={() => router.push("/kiosk/setup")}>Kiosk setup</KButton>
             </div>
           </div>
         </div>

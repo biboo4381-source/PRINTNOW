@@ -73,3 +73,29 @@ h3,
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * Kiosk sizing: everything scales with the smaller side of the screen (vmin), so the kiosk
+ * fits a 1280×720 laptop, a tablet or a large touchscreen monitor without scrolling,
+ * and still works (scrolling) on a phone.
+ */
+.kiosk {
+  --k-h1: clamp(1.6rem, 4.4vmin, 3.75rem);
+  --k-h-hero: clamp(1.9rem, 5.2vmin, 4.25rem);
+  --k-tile: clamp(1.6rem, 4.4vmin, 3.25rem);
+  --k-body: clamp(1rem, 2.15vmin, 1.875rem);
+  --k-small: clamp(0.9rem, 1.6vmin, 1.25rem);
+  --k-btn: clamp(1.05rem, 2.3vmin, 1.75rem);
+  --k-btn-h: clamp(3.1rem, 7vmin, 5rem);
+  --k-pad: clamp(1rem, 3.6vmin, 3rem);
+  --k-gap: clamp(0.75rem, 2.4vmin, 2rem);
+  --k-key: clamp(3.4rem, 8.6vmin, 6rem);
+  --k-key-text: clamp(1.6rem, 4.2vmin, 3rem);
+  --k-digit-w: clamp(2.4rem, 6vmin, 5rem);
+  --k-digit-h: clamp(3.2rem, 8.2vmin, 7rem);
+  --k-digit-text: clamp(1.9rem, 5vmin, 3.75rem);
+  --k-icon-box: clamp(4rem, 12vmin, 9rem);
+  --k-qr: clamp(11rem, 38vmin, 22rem);
+  --k-header-h: clamp(3.5rem, 8vmin, 6rem);
+  --k-radius: clamp(1rem, 2.6vmin, 2rem);
+}

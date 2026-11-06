@@ -15,7 +15,7 @@ Customer-facing website for PRINTNOW self-service printing kiosks. Customers upl
 
 ## Kiosk
 
-The touchscreen kiosk (13-inch iPad, simulated printing) lives at **`/kiosk`** in the same app and shares the backend and database. Setup and operation: [docs/KIOSK_GUIDE.md](docs/KIOSK_GUIDE.md).
+The kiosk interface (works on any screen: laptop, touchscreen monitor or tablet; simulated printing) lives at **`/kiosk`** in the same app and shares the backend and database. Setup and operation: [docs/KIOSK_GUIDE.md](docs/KIOSK_GUIDE.md).
 
 ## Docs
 
@@ -23,7 +23,7 @@ The touchscreen kiosk (13-inch iPad, simulated printing) lives at **`/kiosk`** i
 |---|---|
 | [docs/ARCHITECTURE_PROPOSAL.md](docs/ARCHITECTURE_PROPOSAL.md) | Approved architecture (Phase 1) |
 | [docs/KIOSK_PROPOSAL.md](docs/KIOSK_PROPOSAL.md) | Approved kiosk architecture |
-| [docs/KIOSK_GUIDE.md](docs/KIOSK_GUIDE.md) | iPad kiosk setup, staff menu, troubleshooting |
+| [docs/KIOSK_GUIDE.md](docs/KIOSK_GUIDE.md) | Kiosk setup (laptop, monitor or tablet), staff menu, troubleshooting |
 | [docs/KIOSK_API.md](docs/KIOSK_API.md) | REST API for a future native kiosk / printer service |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Vercel setup, env vars, changing prices, adding kiosks, local dev |
 | [docs/TEST_REPORT.md](docs/TEST_REPORT.md) | Test results against the 16 required scenarios |

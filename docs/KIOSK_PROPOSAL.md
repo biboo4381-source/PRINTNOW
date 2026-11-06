@@ -3,6 +3,8 @@
 Status: **Approved and implemented** (landscape, English, kiosk-01) · Date: 5 November 2026
 
 > Implementation note: the kiosk runs as one full-screen page at `/kiosk` that switches between screens internally (no browser history to get lost in), plus `/kiosk/setup` for pairing. Operation guide: `docs/KIOSK_GUIDE.md`.
+>
+> Update (6 November 2026): the team decided the kiosk should not be iPad-only. The layout now scales to any screen (laptops 1280×720 and up, touchscreen monitors, tablets in either orientation, phones with scrolling) and works with touch, mouse or keyboard. The iPad details below are kept as the original proposal.
 Scope: the kiosk touchscreen interface (13-inch iPad prototype, no physical printer), integrated with the existing PRINTNOW website, backend and database.
 
 ---

@@ -1,26 +1,38 @@
 # PRINTNOW Kiosk: Setup & Operations Guide
 
-Kiosk URL: **https://printnow-web.vercel.app/kiosk** · Device: 13-inch iPad, landscape · Mode: **simulated printing** (no printer)
+Kiosk URL: **https://printnow-web.vercel.app/kiosk** · Device: **any screen**: a laptop, a touchscreen monitor, or a tablet · Mode: **simulated printing** (no printer)
 
 The kiosk is part of the PRINTNOW website project. It uses the same backend and database, so orders paid on the website can be collected here with their collection code.
 
-## 1. One-time iPad setup (staff, about 10 minutes)
+The layout scales to the screen. It fits without scrolling on a 1280×720 or 1366×768 laptop, a 1920×1080 monitor and a tablet in either orientation. On a phone it still works, with some scrolling. Touch, mouse and keyboard all work: on a laptop the customer can click the keypad or type the 6 digits and press **Enter**.
 
-1. **Network:** connect the iPad to reliable Wi-Fi. The kiosk needs internet for every code check.
-2. **Pair the iPad:**
-   - Open Safari at `https://printnow-web.vercel.app/kiosk`. It redirects to **Kiosk setup**.
-   - Enter **Kiosk ID** `kiosk-01` and the **kiosk key** (from the team's password manager), then tap **Pair this device**.
-   - The server checks the key and stores a secure session on the iPad, valid for 180 days. The key itself is not kept on the iPad.
-3. **Full screen:** in Safari tap **Share → Add to Home Screen** ("PRINTNOW Kiosk"), then open the kiosk from that icon. It runs without the Safari address bar.
-4. **Screen settings:**
-   - Settings → Display & Brightness → **Auto-Lock: Never**.
-   - Turn on the orientation lock in **landscape**.
-   - Raise brightness. Turn Night Shift off.
-5. **Lock the iPad to the kiosk (Guided Access):**
-   - Settings → Accessibility → **Guided Access → On**, then set a passcode known only to staff.
-   - Open the kiosk app and **triple-click the top button**, then tap **Start**. Customers can't leave the kiosk.
-   - To exit: triple-click, then enter the passcode.
-6. **Test** with a real order (see §3).
+## 1. One-time setup (staff, about 10 minutes)
+
+### 1.1 Every device
+
+1. **Network:** connect to reliable Wi-Fi. The kiosk needs internet for every code check.
+2. **Pair the device:**
+   - Open `https://printnow-web.vercel.app/kiosk` in **Chrome or Edge** (laptop or monitor) or **Safari** (iPad). It redirects to **Kiosk setup**.
+   - Enter **Kiosk ID** `kiosk-01` and the **kiosk key** (from the team's password manager), then select **Pair this device**.
+   - The server checks the key and stores a secure session in this browser, valid for 180 days. The key itself is not kept on the device.
+3. **Test** with a real order (see §3).
+
+### 1.2 Laptop or PC with a monitor (recommended for the prototype)
+
+1. **Full screen:** press **F11** (Windows) or **Ctrl + Cmd + F** (Mac). The kiosk fills the screen with no address bar.
+2. **Locked kiosk mode (optional, Windows):** make a desktop shortcut that starts Chrome as a kiosk:
+   ```
+   "C:\Program Files\Google\Chrome\Application\chrome.exe" --kiosk https://printnow-web.vercel.app/kiosk
+   ```
+   Pair once in normal Chrome first; the kiosk window uses the same browser profile. Close it with **Alt + F4**.
+3. **Power settings:** set the screen and sleep timers to **Never** while plugged in. The kiosk also asks the browser to keep the screen awake.
+4. **Touchscreen monitor:** works as is. Touch replaces the mouse.
+
+### 1.3 iPad or other tablet
+
+1. **Full screen:** in Safari choose **Share → Add to Home Screen** ("PRINTNOW Kiosk") and open the kiosk from that icon.
+2. **Screen:** Settings → Display & Brightness → **Auto-Lock: Never**. Landscape or portrait both work.
+3. **Lock the iPad to the kiosk (Guided Access):** Settings → Accessibility → **Guided Access → On** and set a staff passcode. Open the kiosk, **triple-click the top button**, then **Start**. To exit: triple-click and enter the passcode.
 
 ## 2. Using the kiosk (customers)
 
@@ -33,40 +45,40 @@ The kiosk is part of the PRINTNOW website project. It uses the same backend and 
 | Printing (simulated) | Order is reserved, the real document is retrieved and checked, sheet-by-sheet progress with page preview |
 | Printing complete | Order is marked **COMPLETED**; the kiosk returns home after 12 s |
 
-Any screen except printing returns home after **60 s** without a touch, to protect the next customer's privacy.
+Any screen except printing returns home after **60 s** without a touch, click or key press, to protect the next customer's privacy.
 
 ## 3. Test checklist (after setup or any update)
 
 1. On a phone, open the website, upload a small PDF, pay with the demo QRIS, and note the code.
-2. At the kiosk, tap **COLLECTION CODE**, enter the code and check the details match. Tap **CONFIRM & PRINT** and wait for **Printing complete**.
+2. At the kiosk, select **COLLECTION CODE**, enter the code and check the details match. Select **CONFIRM & PRINT** and wait for **Printing complete**.
 3. Enter the same code again. It must say **Already printed**.
 4. Enter `000000`. It must say **Code not found**.
-5. Tap **UPLOAD FILE** and scan the QR with a phone. The website must open.
+5. Select **UPLOAD FILE** and scan the QR with a phone. The website must open.
 
 ## 4. Staff menu
 
-**Press and hold the PRINTNOW logo (top left) for 2 seconds.**
+**Press and hold the PRINTNOW logo (top left) for 2 seconds**, or on a keyboard press **Ctrl + Alt + K**.
 
 | Option | Use |
 |---|---|
 | Simulate a paper jam on the next print | Demonstrates error handling: the print stops, the order goes back to **PAID**, and the same code works again |
 | Reload kiosk | Refreshes the app |
-| Kiosk setup | Shows which kiosk the iPad is paired as; unpair or re-pair |
+| Kiosk setup | Shows which kiosk this device is paired as; unpair or re-pair |
 
 ## 5. Troubleshooting
 
 | Problem | What to do |
 |---|---|
-| Kiosk shows **Kiosk setup** | The session expired, website data was cleared, or the key was changed. Pair again (§1.2) |
+| Kiosk shows **Kiosk setup** | The session expired, browser data was cleared, a different browser/profile is used, or the key was changed. Pair again (§1.1) |
 | Red **Offline** badge | Check Wi-Fi. The kiosk retries automatically every few minutes and when the network returns |
-| **Unfinished print found** (staff action) | The kiosk stopped mid-print (closed, crashed, lost power). Tap **Release order** so the customer can reuse the code. Tap **Mark as printed** only if the pages really came out |
+| **Unfinished print found** (staff action) | The kiosk stopped mid-print (closed, crashed, lost power). Select **Release order** so the customer can reuse the code. Select **Mark as printed** only if the pages really came out |
 | Customer says the code doesn't work | Check the 6 digits. Each code works once, and only for 7 days after payment. Find the order by reference in the database (see `docs/DEPLOYMENT.md`) |
 | **Too many attempts** | 5 wrong codes in 10 minutes lock code entry on this kiosk for a few minutes |
 
 ## 6. How it works (technical)
 
 ```
-iPad /kiosk ──(HttpOnly kiosk-session cookie)──▶ /kiosk/api/* ──▶ lib/services/kiosk.ts ──▶ Neon (orders) + Blob (files)
+Browser /kiosk ──(HttpOnly kiosk-session cookie)──▶ /kiosk/api/* ──▶ lib/services/kiosk.ts ──▶ Neon (orders) + Blob (files)
 ```
 
 - **Verify:** `POST /kiosk/api/lookup` runs the same rules as the REST kiosk API (paid, not expired, not processing or completed) and changes nothing.
@@ -80,9 +92,9 @@ iPad /kiosk ──(HttpOnly kiosk-session cookie)──▶ /kiosk/api/* ──�
   - A printer error (e.g. a simulated jam) → `fail(retryable)` → back to **PAID**.
   - A damaged or missing document → **FAILED** with the reason.
 - **Security:**
-  - The kiosk key never reaches the iPad's JavaScript.
+  - The kiosk key never reaches the browser's JavaScript.
   - An unpaired browser can't look up orders or download files.
   - Files are only available while this kiosk is printing that order.
-- **Future printer:** replace `SimulatedPrinter` (`lib/kiosk/printer.ts`) with a driver for the real printer. iPad Safari can't print silently, so this needs either a small print service on a PC next to the printer (the REST API in `docs/KIOSK_API.md` is ready for it) or a cloud-print printer. The kiosk screens stay the same.
+- **Future printer:** replace `SimulatedPrinter` (`lib/kiosk/printer.ts`) with a driver for the real printer. A web page can't print silently on any device, so this needs either a small print service on the PC next to the printer (the REST API in `docs/KIOSK_API.md` is ready for it) or a cloud-print printer. A laptop-based kiosk can run that print service on the same machine. The kiosk screens stay the same.
 
 Server setting: the environment variable `KIOSK_SESSION_SECRET` signs kiosk sessions. Changing it signs out all kiosks. Removing a kiosk from `KIOSK_API_KEYS` signs out that kiosk.
