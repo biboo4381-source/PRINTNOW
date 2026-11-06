@@ -256,6 +256,8 @@ export async function failOrder(
   }
   const result = `${opts.simulated ? "SIMULATED_" : ""}${canRetry ? "RETRYABLE" : "FAILED"}`;
   await log(db, { kioskId, action: "FAIL", result, orderId, error: why });
+  // Also in the hosting logs, so a stopped print can be diagnosed without database access.
+  console.warn(`[printnow] kiosk ${kioskId} print stopped for ${updated.orderRef} (${result}): ${why}`);
   return { orderId, status: updated.status };
 }
 

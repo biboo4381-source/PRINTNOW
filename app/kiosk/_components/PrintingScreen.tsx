@@ -21,7 +21,7 @@ type PdfDoc = import("pdfjs-dist").PDFDocumentProxy;
 export type PrintOutcome =
   | { ok: true; job: PrintJob }
   | { ok: false; kind: "rejected"; code: string } // claim refused (already processing/completed…)
-  | { ok: false; kind: "failed"; retryable: boolean; reference: string };
+  | { ok: false; kind: "failed"; retryable: boolean; reference: string; detail: string };
 
 /**
  * Runs one real order through the (simulated) printer:
@@ -94,9 +94,11 @@ export function PrintingScreen({
         if (lastErr) throw lastErr;
         finishedRef.current({ ok: true, job: prepared });
       } catch (err) {
+        // Short technical reason, shown in small print for staff and saved with the order.
+        const detail = `${at.stage}: ${err instanceof KioskApiError ? `${err.code} (${err.status || "no response"}) ${err.message}` : err instanceof Error ? err.message : String(err)}`.slice(0, 300);
         if (err instanceof PrinterError) {
           await kioskApi.fail(order.orderId, err.message, err.retryable).catch(() => undefined);
-          finishedRef.current({ ok: false, kind: "failed", retryable: err.retryable, reference: order.orderRef });
+          finishedRef.current({ ok: false, kind: "failed", retryable: err.retryable, reference: order.orderRef, detail });
           return;
         }
         if (at.stage === "claim" && err instanceof KioskApiError) {
@@ -105,12 +107,12 @@ export function PrintingScreen({
         }
         if (at.stage === "prepare" && err instanceof KioskApiError && err.code === "PRINT_FILE_INVALID") {
           // The server already marked the order FAILED with the reason.
-          finishedRef.current({ ok: false, kind: "failed", retryable: false, reference: order.orderRef });
+          finishedRef.current({ ok: false, kind: "failed", retryable: false, reference: order.orderRef, detail });
           return;
         }
         // Anything else (network, server error): release the order so the code can be used again.
-        await kioskApi.fail(order.orderId, `Kiosk error during ${at.stage}: ${err instanceof Error ? err.message : "unknown"}`, true).catch(() => undefined);
-        finishedRef.current({ ok: false, kind: "failed", retryable: true, reference: order.orderRef });
+        await kioskApi.fail(order.orderId, `Kiosk error during ${detail}`, true).catch(() => undefined);
+        finishedRef.current({ ok: false, kind: "failed", retryable: true, reference: order.orderRef, detail });
       }
     })();
   }, [order, code, simulateJam]);

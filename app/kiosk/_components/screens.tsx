@@ -368,7 +368,7 @@ export function DoneScreen({ job, onHome, seconds = 12 }: { job: PrintJob; onHom
   );
 }
 
-export function FailedScreen({ retryable, reference, onHome }: { retryable: boolean; reference?: string; onHome: () => void }) {
+export function FailedScreen({ retryable, reference, detail, onHome }: { retryable: boolean; reference?: string; detail?: string; onHome: () => void }) {
   return (
     <div className={centered} data-testid="kiosk-failed">
       <span className={clsx(bigIcon, "bg-danger-50 text-danger")}>
@@ -381,6 +381,11 @@ export function FailedScreen({ retryable, reference, onHome }: { retryable: bool
             ? "Something went wrong with the printer. Your code still works, so you can try again or ask staff for help."
             : `This order can't be printed. Please contact PRINTNOW support${reference ? ` with reference ${reference}` : ""}.`}
         </p>
+        {detail && (
+          <p className="mx-auto mt-[0.8em] max-w-3xl font-mono text-[length:var(--k-small)] text-ink-muted/80 [overflow-wrap:anywhere]" data-testid="failure-detail">
+            Details for staff{reference ? ` · ${reference}` : ""}: {detail}
+          </p>
+        )}
       </div>
       <KButton tone="secondary" onClick={onHome} className="min-w-[10em]">
         <Home aria-hidden="true" /> Home

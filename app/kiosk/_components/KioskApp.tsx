@@ -18,7 +18,7 @@ type Screen =
   | { name: "confirm"; order: KioskOrder; digits: string }
   | { name: "printing"; order: KioskOrder; digits: string }
   | { name: "done"; job: PrintJob }
-  | { name: "failed"; retryable: boolean; reference?: string }
+  | { name: "failed"; retryable: boolean; reference?: string; detail?: string }
   | { name: "recovery"; order: KioskOrder };
 
 const IDLE_SCREENS = new Set<Screen["name"]>(["upload", "code", "message", "confirm", "failed"]);
@@ -70,7 +70,7 @@ export function KioskApp({ kioskId, uploadUrl, qrSvg, idleSeconds }: { kioskId: 
   const onPrinted = useCallback((o: PrintOutcome) => {
     if (o.ok) setScreen({ name: "done", job: o.job });
     else if (o.kind === "rejected") setScreen({ name: "message", code: o.code, digits: "" });
-    else setScreen({ name: "failed", retryable: o.retryable, reference: o.reference });
+    else setScreen({ name: "failed", retryable: o.retryable, reference: o.reference, detail: o.detail });
   }, []);
 
   async function resolveRecovery(order: KioskOrder, action: "release" | "complete") {
@@ -128,7 +128,7 @@ export function KioskApp({ kioskId, uploadUrl, qrSvg, idleSeconds }: { kioskId: 
       body = <DoneScreen job={screen.job} onHome={home} />;
       break;
     case "failed":
-      body = <FailedScreen retryable={screen.retryable} reference={screen.reference} onHome={home} />;
+      body = <FailedScreen retryable={screen.retryable} reference={screen.reference} detail={screen.detail} onHome={home} />;
       break;
     case "recovery":
       body = (

@@ -210,6 +210,7 @@ test.describe("kiosk", () => {
     await page.getByRole("button", { name: /CONFIRM & PRINT/ }).click();
     await expect(page.getByTestId("kiosk-failed")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("kiosk-failed")).toContainText("Your code still works");
+    await expect(page.getByTestId("failure-detail")).toContainText("print: Simulated paper jam");
     expect(await kioskStatus(request, code)).toBe("PAID");
 
     await page.getByRole("button", { name: /Home/ }).click();
