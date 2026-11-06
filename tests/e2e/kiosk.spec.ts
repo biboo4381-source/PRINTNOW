@@ -24,13 +24,13 @@ async function paidOrderViaApi(
   return { code: paid.collectionCode, orderId, customer };
 }
 
-async function pair(page: Page) {
+async function pair(page: Page, screen: string | RegExp = "home") {
   await page.goto("/kiosk");
   await expect(page).toHaveURL(/\/kiosk\/setup$/);
   await page.getByLabel("Kiosk ID").fill(E2E_KIOSK_ID);
   await page.getByLabel("Kiosk key").fill(E2E_KIOSK_KEY);
   await page.getByRole("button", { name: "Pair this device" }).click();
-  await expect(page.getByTestId("kiosk")).toHaveAttribute("data-screen", "home", { timeout: 15_000 });
+  await expect(page.getByTestId("kiosk")).toHaveAttribute("data-screen", screen, { timeout: 15_000 });
 }
 
 async function enterCode(page: Page, code: string) {
@@ -243,7 +243,8 @@ test.describe("kiosk", () => {
     const { code, orderId } = await paidOrderViaApi(baseURL!, { name: "stuck.pdf", type: "application/pdf", bytes: Buffer.from(await makePdf(1)) });
     // Simulate a kiosk that claimed the order and then lost power.
     expect((await request.post(`/api/kiosk/orders/${orderId}/claim`, { headers: kioskHeaders, data: { code } })).status()).toBe(200);
-    await pair(page);
+    // The recovery check runs right after the kiosk opens, so home may or may not show first.
+    await pair(page, /^(home|recovery)$/);
     await expect(page.getByTestId("kiosk-recovery")).toBeVisible();
     await expect(page.getByTestId("kiosk-recovery")).toContainText("stuck.pdf");
     await page.getByRole("button", { name: "Release order" }).click();
